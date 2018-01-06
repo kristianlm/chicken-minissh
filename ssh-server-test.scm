@@ -135,6 +135,52 @@
   (current-payload-writer (make-payload-writer/chacha20 key-s2c-main key-s2c-header))
   (write-payload "\x06\x00\x00\x00\fssh-userauth" op)
   (print "next: " (wots (write (read-payload ip))))
+
+  (write-payload (wots (write-byte SSH_MSG_USERAUTH_SUCCESS)) op)
+
+  (print "expecting session OPEN here")
+  (read-payload ip) ;;; e.g.  "Z\x00\x00\x00\asession\x00\x00\x00\x01\x00 \x00\x00\x00\x00\x80\x00"
+
+  (write-payload (wots
+                  (write-byte SSH_MSG_CHANNEL_OPEN_CONFIRMATION)
+                  (display "\x00\x00\x00\x01") ;; sender cid
+                  (display "\x00\x00\x00\x02") ;; my cid
+                  (display (u2s #x200000))
+                  (display (u2s #x008000)))
+                 op)
+
+  (print "expecting exec CHANNEL REQUEST (#\b) here")
+  ;; eg   "b\x00\x00\x00\x02\x00\x00\x00\x04exec\x01\x00\x00\x00\techo test"
+  (read-payload ip)
+
+
+  (write-payload (wots (write-byte SSH_MSG_CHANNEL_SUCCESS)
+                       (display "\x00\x00\x00\x01"))
+                 op)
+
+
+  (write-payload
+   (wots
+    (write-byte SSH_MSG_CHANNEL_REQUEST)
+    (display "\x00\x00\x00\x01")
+    (write-buflen    "exit-status")
+    (display "\x00")              ;; want reply I think
+    (display "\x00\x00\x00\x06")) ;; exit_status
+   op)
+
+  (write-payload (wots (write-byte SSH_MSG_CHANNEL_EOF)
+                       (display "\x00\x00\x00\x01"))
+                 op)
+
+  (write-payload (wots (write-byte SSH_MSG_CHANNEL_CLOSE)
+                       (display "\x00\x00\x00\x01"))
+                 op)
+
+  (print "expecting channel close (#\a)")
+  (read-payload ip)
+
+  (read-payload ip)
+
   )
 
 
