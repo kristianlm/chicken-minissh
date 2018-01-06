@@ -74,7 +74,7 @@
 
 (define (write-payload payload op)
   (with-output-to-port (current-error-port)
-    (lambda () (print "====== SENDING (" (string-length payload) ") " (wots (write payload)))))
+    (lambda () (print "==== SENDING (" (string-length payload) ") " (wots (write payload)))))
   ((current-payload-writer) payload op)
   (current-packet-seqnum/write (+ 1 (current-packet-seqnum/write))))
 
@@ -92,7 +92,7 @@
   (define (write-payload/chacha20 payload op)
   
     (define pak (wots (payload-pad payload 8 0)))
-    (print "SENDING: " (wots (write pak)))
+    ;;(print "SENDING: " (wots (write pak)))
  
     (define pak* (chacha-encrypt chacha-s-main #${01000000 00000000} pak))
     (define paklen (u2s (string-length pak)))
