@@ -199,7 +199,7 @@
     (define paklen* (read-string/check 4 ip))
     (define paklen (s2u (chacha-decrypt chacha-header #${00000000 00000000} paklen*)))
     ;;(print "paklen " paklen)
-    (unless (< paklen 100) (error "paklen too big?" paklen))
+    (unless (< paklen 512) (error "paklen too big?" paklen))
     (define pak* (read-string/check paklen ip))
     (define mac  (read-string/check 16 ip))
     

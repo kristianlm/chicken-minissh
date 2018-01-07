@@ -152,7 +152,7 @@
                   (display (u2s #x008000)))
                  op)
 
-  (print "expecting exec CHANNEL REQUEST (#\b) here")
+  (print "expecting exec CHANNEL REQUEST (#\\b) here")
   ;; eg   "b\x00\x00\x00\x02\x00\x00\x00\x04exec\x01\x00\x00\x00\techo test"
   (read-payload ip)
 
