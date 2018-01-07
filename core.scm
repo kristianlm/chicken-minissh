@@ -58,6 +58,12 @@
     (string-set! s 3 (integer->char (arithmetic-shift n -0)))
     s))
 
+(define (read-string/check len ip)
+  (let ((result (read-string len ip)))
+    (unless (= len (string-length result))
+      (error (conc "unexpected EOF. wanted " len " bytes, got") result))
+    result))
+
 (define (write-buflen packet #!optional (op (current-output-port)))
   (display (u2s (string-length packet)) op)
   (display packet op))
@@ -168,10 +174,8 @@
   (substring packet 1 payload_end))
 
 (define (read-buflen #!optional (ip (current-input-port)))
-  (define packet_length (s2u (read-string 4 ip)))
-  (let ((result (read-string packet_length ip)))
-    (assert (= (string-length result) packet_length))
-    result))
+  (define packet_length (s2u (read-string/check 4 ip)))
+  (read-string/check packet_length ip))
 
 (define (read-payload/none ip)
   (packet-payload (read-buflen ip)))
@@ -192,12 +196,12 @@
   
   (define (read-payload/chacha20 ip)
 
-    (define paklen* (read-string 4 ip))
+    (define paklen* (read-string/check 4 ip))
     (define paklen (s2u (chacha-decrypt chacha-header #${00000000 00000000} paklen*)))
     ;;(print "paklen " paklen)
     (unless (< paklen 100) (error "paklen too big?" paklen))
-    (define pak* (read-string paklen ip))
-    (define mac  (read-string 16 ip))
+    (define pak* (read-string/check paklen ip))
+    (define mac  (read-string/check 16 ip))
     
     (define poly-key (string->blob (chacha-decrypt chacha-main #${00000000 00000000} (make-string 32 #\null))))
     ;; (print "poly-key " poly-key)
