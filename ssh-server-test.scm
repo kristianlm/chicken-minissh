@@ -156,6 +156,10 @@
   ;; eg   "b\x00\x00\x00\x02\x00\x00\x00\x04exec\x01\x00\x00\x00\techo test"
   (read-payload ip)
 
+  (write-payload (wots (write-byte SSH_MSG_CHANNEL_DATA)
+                       (display "\x00\x00\x00\x01")
+                       (write-buflen "test from Chicken!\n"))
+                 op)
 
   (write-payload (wots (write-byte SSH_MSG_CHANNEL_SUCCESS)
                        (display "\x00\x00\x00\x01"))
