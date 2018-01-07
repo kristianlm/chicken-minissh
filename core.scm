@@ -62,6 +62,18 @@
   (display (u2s (string-length packet)) op)
   (display packet op))
 
+
+;; prefix "bignum" with 00 if first byte is negative (in two's
+;; complement). mpints are described in https://tools.ietf.org/html/rfc4251#section-5
+(define (string->mpint str)
+  (if (>= (char->integer (string-ref str 0)) 128)
+      (string-append "\x00" str)
+      str))
+
+(define (write-mpint/positive str)
+  (write-buflen (string->mpint str)))
+
+
 (define (write-payload/none payload op)
   (write-buflen (wots (payload-pad payload 8 4)) op))
 
@@ -211,14 +223,13 @@
     (current-packet-seqnum/read (+ 1 (current-packet-seqnum/read)))
     payload))
 
-
 ;; derive a 64 byte key from curve25519 shared secret and exchange
 ;; hash. see https://tools.ietf.org/html/rfc4253#section-7.2
 (define (kex-derive-keys64 c K H session-id)
-  (assert (= 32 (string-length K)))
-  (assert (= 32 (string-length H)))
-  (assert (= 32 (string-length session-id)))
-  (assert (= 1 (string-length c))) ;; make sure we're doing one of A B C D E F.
+  (assert (>= (string-length K) 32))
+  (assert (= (string-length H) 32))
+  (assert (= (string-length session-id) 32))
+  (assert (= (string-length c) 1)) ;; make sure we're doing one of A B C D E F.
   (assert (memq (string-ref c 0) '(#\A #\B #\C #\D #\E #\F)))
   (define K1 (sha256 (string-append (u2s (string-length K)) K H c session-id)))
   (define K2 (sha256 (string-append (u2s (string-length K)) K H K1)))

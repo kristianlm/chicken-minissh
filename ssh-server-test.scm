@@ -25,22 +25,32 @@
 
 ;; (wots (write-signpk "x123456789 123456789 12345678912"))
 
-;; https://tools.ietf.org/html/rfc5656#section-4
+;; produce hash H according to https://tools.ietf.org/html/rfc4253#section-8
 (define (hashcontent hellorecv hellosend
                      kexrecv kexsend
                      server-sign-pk
                      clientpk serverpk
                      sharedsecret)
-  (with-output-to-string
-    (lambda ()
-      (write-buflen hellorecv)
-      (write-buflen hellosend)
-      (write-buflen kexrecv)
-      (write-buflen kexsend)
-      (write-signpk server-sign-pk)
-      (write-buflen clientpk)
-      (write-buflen serverpk)
-      (write-buflen sharedsecret))))
+
+  ;; (print "hellorecv: " (string->blob hellorecv))
+  ;; (print "hellosend: " (string->blob hellosend))
+  ;; (print "kexrecv: " (string->blob kexrecv))
+  ;; (print "kexsend: " (string->blob kexsend))
+  ;; (print "server-sign-pk: " (string->blob server-sign-pk))
+  ;; (print "clientpk: " (string->blob clientpk))
+  ;; (print "serverpk: " (string->blob serverpk))
+  ;; (print "sharedsecret: " (string->blob sharedsecret))
+
+  (let ((res (wots (write-buflen hellorecv)
+                   (write-buflen hellosend)
+                   (write-buflen kexrecv)
+                   (write-buflen kexsend)
+                   (write-signpk server-sign-pk)
+                   (write-buflen clientpk)
+                   (write-buflen serverpk)
+                   (write-mpint/positive sharedsecret))))
+    (print "hashcontent: " (string->blob res))
+    res))
 
 (define (curve25519-dh server-sk client-pk)
   (blob->string (scalarmult (string->blob server-sk)
@@ -67,15 +77,10 @@
     (wifs next-packet
           (print "packet type: " (read-byte))
           (read-buflen)))
-
   (eval `(set! clientpk ,clientpk))
-  (print "serverpk " (string->blob serverpk))
-  (print "clientpk " (string->blob clientpk))
 
-  (define sharedsecret (curve25519-dh serversk clientpk))
+  (define sharedsecret (string->mpint (curve25519-dh serversk clientpk)))
   (eval `(set! K ,sharedsecret))
-
-  (print "shared secret " (string->blob sharedsecret))
 
   (define hashing
     (hashcontent helloreceive hellosend
@@ -87,8 +92,6 @@
   (define hash (sha256 hashing))
   (define sid hash) ;; session_id
   
-  (print "hash: " (string->blob hash))
-
   (print "signing " (string->blob hash) " pk " (string->blob server-sign-pk))
   (define signature (substring ((asymmetric-sign (string->blob server-sign-sk)) hash) 0 64))
   (print "signature: " (string->blob signature))
