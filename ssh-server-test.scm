@@ -144,10 +144,14 @@
   (print "expecting session OPEN here")
   (read-payload ip) ;;; e.g.  "Z\x00\x00\x00\asession\x00\x00\x00\x01\x00 \x00\x00\x00\x00\x80\x00"
 
+  ;; TODO: parse this properly
+  (define channelid "\x00\x00\x00\x01") ;; OpenSSH on arch linux
+  ;; (define channelid "\x00\x00\x00\x00") ;; OpenSSH on mac
+
   (write-payload (wots
                   (write-byte SSH_MSG_CHANNEL_OPEN_CONFIRMATION)
-                  (display "\x00\x00\x00\x01") ;; sender cid
-                  (display "\x00\x00\x00\x02") ;; my cid
+                  (display channelid) ;; sender cid
+                  (display "\x00\x00\x00\x01") ;; my cid
                   (display (u2s #x200000))
                   (display (u2s #x008000)))
                  op)
@@ -157,30 +161,30 @@
   (read-payload ip)
 
   (write-payload (wots (write-byte SSH_MSG_CHANNEL_DATA)
-                       (display "\x00\x00\x00\x01")
+                       (display channelid)
                        (write-buflen "test from Chicken!\n"))
                  op)
 
   (write-payload (wots (write-byte SSH_MSG_CHANNEL_SUCCESS)
-                       (display "\x00\x00\x00\x01"))
+                       (display channelid))
                  op)
 
 
   (write-payload
    (wots
     (write-byte SSH_MSG_CHANNEL_REQUEST)
-    (display "\x00\x00\x00\x01")
+    (display channelid)
     (write-buflen    "exit-status")
     (display "\x00")              ;; want reply I think
     (display "\x00\x00\x00\x06")) ;; exit_status
    op)
 
   (write-payload (wots (write-byte SSH_MSG_CHANNEL_EOF)
-                       (display "\x00\x00\x00\x01"))
+                       (display channelid))
                  op)
 
   (write-payload (wots (write-byte SSH_MSG_CHANNEL_CLOSE)
-                       (display "\x00\x00\x00\x01"))
+                       (display channelid))
                  op)
 
   (print "expecting channel close (#\a)")
