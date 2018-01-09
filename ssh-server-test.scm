@@ -1,4 +1,5 @@
-(load "core.scm")
+(use srfi-18)
+(include "core.scm")
 
 (begin
   (define scalarmult-base #${09000000 00000000    00000000 00000000
@@ -49,7 +50,7 @@
                    (write-buflen clientpk)
                    (write-buflen serverpk)
                    (write-mpint/positive sharedsecret))))
-    (print "hashcontent: " (string->blob res))
+    ;;(print "hashcontent: " (string->blob res))
     res))
 
 (define (curve25519-dh server-sk client-pk)
@@ -187,23 +188,25 @@
                        (display channelid))
                  op)
 
+
+  (print "expecting stdin SSH_MSG_CHANNEL_DATA #\\^ ")
+  (read-payload ip)
+  (print "expecting eof SSH_MSG_CHANNEL_EOF #\\a")
+  (read-payload ip)
   (print "expecting channel close (#\a)")
   (read-payload ip)
-
+  (print "expecting disconnect \\x01 ")
   (read-payload ip)
-
   )
 
 
-(quote
- (begin
-   (define ss (tcp-listen 2222))
-   (thread-start!
-    (lambda ()
-      (let loop ()
-        (receive (ip op) (tcp-accept ss)
-          (print "incoming: " ip " " op)
-          (thread-start!
-           (lambda () (handle-client ip op))))
-        (loop))))))
+(define ss (tcp-listen 2222))
+(let loop ()
+  (receive (ip op) (tcp-accept ss)
+    (print "incoming: " ip " " op)
+    (thread-start!
+     (lambda () (handle-client ip op))))
+  (loop))
+
+
 
