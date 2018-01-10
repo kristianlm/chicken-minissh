@@ -10,12 +10,12 @@
   
   (define serverpk (blob->string (scalarmult (string->blob serversk)
                                              scalarmult-base)))
-  ;; tinyssh ed25519.pk (string-length server-sign-pk)
+
   (define server-sign-pk
-    (base64-decode "CH9faUvRATVNkOlbUgKvAQJllDiQmRgcLOxA0yvUygg="))
+    (base64-decode "M84ih/5V5TFvI3DSuMXiSwa5EqUqC7cYM/J09uIpxLU="))
   (define server-sign-sk
-    (base64-decode (conc "D3vomT+w+/2YDvaUR9dtWg0m/0BQosbvX/Z7LZgqtR4I"
-                         "f19pS9EBNU2Q6VtSAq8BAmWUOJCZGBws7EDTK9TKCA==")))) 
+    (base64-decode (conc "iWtDZXdl/UeN3q7sq2QWN2Ymv3ggveJRBvn1a+rMC5oz"
+                         "ziKH/lXlMW8jcNK4xeJLBrkSpSoLtxgz8nT24inEtQ=="))))
 
 (define (write-signpk pk)
   (define type "ssh-ed25519")
