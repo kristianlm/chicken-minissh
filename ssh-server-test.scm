@@ -111,10 +111,7 @@
   (write-payload ssh
                  (wots (write-byte (payload-type->int 'SSH_MSG_NEWKEYS))))
 
-  (let ((payload (read-payload ssh)))
-    (print "AWDLKJDAWLIJFAWEIPOFGA " payload)
-    (unless (eq? (payload-type payload) 'SSH_MSG_NEWKEYS)
-      (error "expected SSH_MSG_NEWKEYS, got " payload)))
+  (read-payload/expect ssh 'SSH_MSG_NEWKEYS)
 
   (define (kex-derive-key id)
     (string->blob (kex-derive-keys64 id sharedsecret hash (ssh-sid ssh))))
@@ -137,11 +134,9 @@
   (%ssh-payload-writer-set! ssh (make-payload-writer/chacha20 key-s2c-main key-s2c-header))
 
 
-  (define packet (read-payload ssh))
-  (print "client requesting service: " (wots (write packet)))
+  (define packet (read-payload/expect ssh 'SSH_MSG_SERVICE_REQUEST))
   (unless (equal? "\x05\x00\x00\x00\fssh-userauth" packet)
     (error "something's not right here"))
-
 
   (write-payload ssh "\x06\x00\x00\x00\fssh-userauth")
 
@@ -152,12 +147,11 @@
                             (write-buflen "none"))))
 
 
-  (print "next: " (wots (write (read-payload ssh))))
-
+  (read-payload/expect ssh 'SSH_MSG_USERAUTH_REQUEST)
   (write-payload ssh (wots (write-byte (payload-type->int 'SSH_MSG_USERAUTH_SUCCESS))))
 
-  (print "expecting session OPEN here")
-  (read-payload ssh) ;;; e.g.  "Z\x00\x00\x00\asession\x00\x00\x00\x01\x00 \x00\x00\x00\x00\x80\x00"
+   ;;; e.g.  "Z\x00\x00\x00\asession\x00\x00\x00\x01\x00 \x00\x00\x00\x00\x80\x00"
+  (read-payload/expect ssh 'SSH_MSG_CHANNEL_OPEN)
 
   ;; TODO: parse this properly
   (define channelid "\x00\x00\x00\x01") ;; OpenSSH on arch linux
@@ -172,9 +166,7 @@
                   (display (u2s #x200000))
                   (display (u2s #x008000))))
 
-  (print "expecting exec CHANNEL REQUEST (#\\b) here")
-  ;; eg   "b\x00\x00\x00\x02\x00\x00\x00\x04exec\x01\x00\x00\x00\techo test"
-  (read-payload ssh)
+  (read-payload/expect ssh 'SSH_MSG_CHANNEL_REQUEST)
 
   (write-payload ssh
                  (wots (write-byte (payload-type->int 'SSH_MSG_CHANNEL_DATA))

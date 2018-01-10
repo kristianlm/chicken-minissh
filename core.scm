@@ -264,6 +264,13 @@
     (%ssh-seqnum/read-set! ssh (+ 1 (ssh-seqnum/read ssh)))
     payload))
 
+(define (read-payload/expect ssh expected-payload-type)
+  (let ((payload (read-payload ssh)))
+    (unless (eq? (payload-type payload) expected-payload-type)
+      (error (conc "expected " expected-payload-type  " got")
+             (payload-type payload) payload))
+    payload))
+
 ;; derive a 64 byte key from curve25519 shared secret and exchange
 ;; hash. see https://tools.ietf.org/html/rfc4253#section-7.2
 (define (kex-derive-keys64 c K H session-id)
