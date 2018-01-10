@@ -127,16 +127,18 @@
   (define key-c2s-main   (string->blob (substring (blob->string key-c2s) 0 32)))
   (define key-c2s-header (string->blob (substring (blob->string key-c2s) 32 64)))
 
-  (define packet (read-payload ssh))
-  (print "client requesting service: " (wots (write packet)))
-  (unless (equal? "\x05\x00\x00\x00\fssh-userauth" packet)
-    (error "something's not right here"))
-
   (define key-s2c-main   (string->blob (substring (blob->string key-s2c) 0 32)))
   (define key-s2c-header (string->blob (substring (blob->string key-s2c) 32 64)))
 
   (%ssh-payload-reader-set! ssh (make-payload-reader/chacha20 key-c2s-main key-c2s-header))
   (%ssh-payload-writer-set! ssh (make-payload-writer/chacha20 key-s2c-main key-s2c-header))
+
+
+  (define packet (read-payload ssh))
+  (print "client requesting service: " (wots (write packet)))
+  (unless (equal? "\x05\x00\x00\x00\fssh-userauth" packet)
+    (error "something's not right here"))
+
 
   (write-payload ssh "\x06\x00\x00\x00\fssh-userauth")
 
