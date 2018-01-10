@@ -122,7 +122,8 @@
 
 (define (write-payload ssh payload)
   (with-output-to-port (current-error-port)
-    (lambda () (print "==== SENDING #" (ssh-seqnum/write ssh) " " (wots (write payload)))))
+    (lambda () (print "==== SENDING #" (ssh-seqnum/write ssh) " <" (payload-type payload) "> "
+                 (wots (write payload)))))
   ((ssh-payload-writer ssh) ssh payload)
   (%ssh-seqnum/write-set! ssh (+ 1 (ssh-seqnum/write ssh))))
 
