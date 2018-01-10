@@ -74,6 +74,9 @@
   (write-payload ssh kexsend)
   (define kexrecv (read-payload ssh))
   ;;(print "kexrecv: " (wots (write kexrecv)))
+  (wifp (open-input-string kexrecv)
+        (print "KEXINIT=? " (read-byte))
+        (SSH_MSG_KEXINIT))
 
   (define next-packet (read-payload ssh))
 
@@ -105,10 +108,8 @@
                        (write-buflen serverpk)
                        (write-signpk signature)))
 
-  (write-payload
-   ssh
-   (wots (write-byte 21) ;; SSH_MSG_NEWKEYS
-         ))
+  (write-payload ssh
+                 (wots (write-byte SSH_MSG_NEWKEYS)))
 
   (define newkeys (read-payload ssh))
 
@@ -126,8 +127,6 @@
   (define key-c2s-main   (string->blob (substring (blob->string key-c2s) 0 32)))
   (define key-c2s-header (string->blob (substring (blob->string key-c2s) 32 64)))
 
-  (%ssh-payload-reader-set! ssh (make-payload-reader/chacha20 key-c2s-main key-c2s-header))
-
   (define packet (read-payload ssh))
   (print "client requesting service: " (wots (write packet)))
   (unless (equal? "\x05\x00\x00\x00\fssh-userauth" packet)
@@ -136,7 +135,9 @@
   (define key-s2c-main   (string->blob (substring (blob->string key-s2c) 0 32)))
   (define key-s2c-header (string->blob (substring (blob->string key-s2c) 32 64)))
 
+  (%ssh-payload-reader-set! ssh (make-payload-reader/chacha20 key-c2s-main key-c2s-header))
   (%ssh-payload-writer-set! ssh (make-payload-writer/chacha20 key-s2c-main key-s2c-header))
+
   (write-payload ssh "\x06\x00\x00\x00\fssh-userauth")
 
   ;; write welcome banner
@@ -173,7 +174,7 @@
   (write-payload ssh
                  (wots (write-byte SSH_MSG_CHANNEL_DATA)
                        (display channelid)
-                       (write-buflen "CHISSHEN> ")))
+                       (write-buflen "CHISSH> ")))
 
   (write-payload ssh
                  (wots (write-byte SSH_MSG_CHANNEL_SUCCESS)
@@ -184,8 +185,8 @@
                  (wots
                   (write-byte SSH_MSG_CHANNEL_REQUEST)
                   (display channelid)
-                  (write-buflen    "exit-status")
-                  (display "\x00")              ;; want reply I think
+                  (write-buflen "exit-status")
+                  (display "\x00") ;; «want reply» I think
                   (display "\x00\x00\x00\x06")) ;; exit_status
                  )
 

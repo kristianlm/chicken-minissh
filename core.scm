@@ -22,13 +22,23 @@
     (warning "outpit? " (ssh-op ssh) op)
     ssh))
 
-(begin
+(begin ;; from https://tools.ietf.org/html/rfc4253#section-12
+  (define SSH_MSG_DISCONNECT             1)
+  (define SSH_MSG_IGNORE                 2)
+  (define SSH_MSG_UNIMPLEMENTED          3)
+  (define SSH_MSG_DEBUG                  4)
+  (define SSH_MSG_SERVICE_REQUEST        5)
+  (define SSH_MSG_SERVICE_ACCEPT         6)
+  (define SSH_MSG_KEXINIT                20)
+  (define SSH_MSG_NEWKEYS                21))
+
+(begin ;; from https://tools.ietf.org/html/rfc4252#section-6
   (define SSH_MSG_USERAUTH_REQUEST            50)
   (define SSH_MSG_USERAUTH_FAILURE            51)
   (define SSH_MSG_USERAUTH_SUCCESS            52)
   (define SSH_MSG_USERAUTH_BANNER             53))
 
-(begin
+(begin ;; from https://tools.ietf.org/html/rfc4254#section-9
   (define SSH_MSG_GLOBAL_REQUEST                  80)
   (define SSH_MSG_REQUEST_SUCCESS                 81)
   (define SSH_MSG_REQUEST_FAILURE                 82)
