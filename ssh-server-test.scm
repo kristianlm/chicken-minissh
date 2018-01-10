@@ -198,13 +198,14 @@
     (read-payload ssh)
     (loop)))
 
-(define ss (tcp-listen 2222))
-(let loop ()
-  (receive (ip op) (tcp-accept ss)
-    (print "incoming: " ip " " op)
-    (thread-start!
-     (lambda () (handle-client ip op))))
-  (loop))
+(define (ssh-server-start port)
+  (define ss (tcp-listen port))
+  (let loop ()
+    (receive (ip op) (tcp-accept ss)
+      (print "incoming: " ip " " op)
+      (thread-start!
+       (lambda () (handle-client ip op))))
+    (loop)))
 
 
 
