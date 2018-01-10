@@ -27,7 +27,7 @@
 ;; (wots (write-signpk "x123456789 123456789 12345678912"))
 
 ;; produce hash H according to https://tools.ietf.org/html/rfc4253#section-8
-(define (hashcontent hellorecv hellosend
+(define (exchange-hash hellorecv hellosend
                      kexrecv kexsend
                      server-sign-pk
                      clientpk serverpk
@@ -42,7 +42,7 @@
   ;; (print "serverpk: " (string->blob serverpk))
   ;; (print "sharedsecret: " (string->blob sharedsecret))
 
-  (let ((res (wots (write-buflen hellorecv)
+  (let ((content (wots (write-buflen hellorecv)
                    (write-buflen hellosend)
                    (write-buflen kexrecv)
                    (write-buflen kexsend)
@@ -50,8 +50,8 @@
                    (write-buflen clientpk)
                    (write-buflen serverpk)
                    (write-mpint/positive sharedsecret))))
-    ;;(print "hashcontent: " (string->blob res))
-    res))
+    ;;(print "hashcontent: " (string->blob content))
+    (sha256 content)))
 
 (define (curve25519-dh server-sk client-pk)
   (blob->string (scalarmult (string->blob server-sk)
@@ -86,14 +86,12 @@
   (define sharedsecret (string->mpint (curve25519-dh serversk clientpk)))
   (eval `(set! K ,sharedsecret))
 
-  (define hashing
-    (hashcontent helloreceive hellosend
-                 kexrecv kexsend
-                 server-sign-pk
-                 clientpk serverpk
-                 sharedsecret))  
-
-  (define hash (sha256 hashing))
+  (define hash
+    (exchange-hash helloreceive hellosend
+                   kexrecv kexsend
+                   server-sign-pk
+                   clientpk serverpk
+                   sharedsecret))
   (%ssh-sid-set! ssh hash) ;; first exchange has = session id (unchanged, even after rekeying)
   
   (print "signing " (string->blob hash) " pk " (string->blob server-sign-pk))
