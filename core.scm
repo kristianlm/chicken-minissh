@@ -180,8 +180,8 @@
   (named-list '("ssh-ed25519")) ;; server_host_key_algorithms
   (named-list '("chacha20-poly1305@openssh.com")) ;; encryption_algorithms_c->s
   (named-list '("chacha20-poly1305@openssh.com")) ;; encryption_algorithms_s->c
-  (named-list '("hmac-sha2-256")) ;; mac_algorithms_client_to_server
-  (named-list '("hmac-sha2-256")) ;; mac_algorithms_server_to_client
+  (named-list '()) ;; mac_algorithms_client_to_server
+  (named-list '()) ;; mac_algorithms_server_to_client
   (named-list '("none")) ;; compression_algorithms_client_to_server
   (named-list '("none")) ;; compression_algorithms_server_to_client
   (named-list '()) ;; languages_client_to_server
