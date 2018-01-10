@@ -32,6 +32,9 @@
     (SSH_MSG_SERVICE_ACCEPT             . 6)
     (SSH_MSG_KEXINIT                   . 20)
     (SSH_MSG_NEWKEYS                   . 21)
+    ;; don't know where this comes from:
+    (SSH_MSG_KEXDH_INIT                . 30)
+    (SSH_MSG_KEXDH_REPLY               . 31)
     ;; from https://tools.ietf.org/html/rfc4252#section-6
     (SSH_MSG_USERAUTH_REQUEST          . 50)
     (SSH_MSG_USERAUTH_FAILURE          . 51)

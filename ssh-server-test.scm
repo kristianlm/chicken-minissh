@@ -103,7 +103,7 @@
 
 
   (write-payload ssh
-                 (wots (write-byte 31) ;; SSH_MSG_KEXDH_REPLY
+                 (wots (write-byte (payload-type->int 'SSH_MSG_KEXDH_REPLY))
                        (write-signpk server-sign-pk)
                        (write-buflen serverpk)
                        (write-signpk signature)))
