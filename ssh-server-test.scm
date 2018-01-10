@@ -141,6 +141,12 @@
   (%ssh-payload-writer-set! ssh (make-payload-writer/chacha20 key-s2c-main key-s2c-header))
   (write-payload ssh "\x06\x00\x00\x00\fssh-userauth")
 
+  ;; write welcome banner
+  (quote
+   (write-payload ssh (wots (write-byte SSH_MSG_USERAUTH_BANNER)
+                            (write-buflen "access granted. welcome. don't do evil, do good.\n")
+                            (write-buflen "none"))))
+
 
   (print "next: " (wots (write (read-payload ssh))))
 
