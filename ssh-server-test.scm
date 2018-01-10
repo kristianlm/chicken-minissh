@@ -111,7 +111,10 @@
   (write-payload ssh
                  (wots (write-byte (payload-type->int 'SSH_MSG_NEWKEYS))))
 
-  (define newkeys (read-payload ssh))
+  (let ((payload (read-payload ssh)))
+    (print "AWDLKJDAWLIJFAWEIPOFGA " payload)
+    (unless (eq? (payload-type payload) 'SSH_MSG_NEWKEYS)
+      (error "expected SSH_MSG_NEWKEYS, got " payload)))
 
   (define (kex-derive-key id)
     (string->blob (kex-derive-keys64 id sharedsecret hash (ssh-sid ssh))))
