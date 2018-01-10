@@ -1,6 +1,27 @@
 (use tcp base64 tweetnacl sha2 message-digest)
 (use chacha)
 
+(define-record-type ssh
+  (%make-ssh ip op sid seqnum/read seqnum/write payload-reader payload-writer)
+  ssh?
+  (ip ssh-ip %ssh-ip-set!)
+  (op ssh-op %ssh-op-set!)
+  (sid ssh-sid %ssh-sid-set!)
+  (seqnum/read  ssh-seqnum/read  %ssh-seqnum/read-set!)
+  (seqnum/write ssh-seqnum/write %ssh-seqnum/write-set!)
+  (payload-reader ssh-payload-reader %ssh-payload-reader-set!)
+  (payload-writer ssh-payload-writer %ssh-payload-writer-set!))
+
+(define (make-ssh ip op)
+  (assert (input-port? ip))
+  (assert (output-port? op))
+  (let ((ssh (%make-ssh ip op
+                        #f 0 0
+                        read-payload/none
+                        write-payload/none)))
+    (warning "outpit? " (ssh-op ssh) op)
+    ssh))
+
 (begin
   (define SSH_MSG_USERAUTH_REQUEST            50)
   (define SSH_MSG_USERAUTH_FAILURE            51)
@@ -79,50 +100,43 @@
 (define (write-mpint/positive str)
   (write-buflen (string->mpint str)))
 
+(define (write-payload/none ssh payload)
+  (write-buflen (wots (payload-pad payload 8 4)) (ssh-op ssh)))
 
-(define (write-payload/none payload op)
-  (write-buflen (wots (payload-pad payload 8 4)) op))
-
-;; parameterizing payload writers, not packet writers because ciphers
-;; differ in padding schemes (chacha20 pads excluding packet_length,
-;; others include those 4 bytes). including padding handling inside
-;; writers means they can customize their padding as needed.
-(define current-payload-writer      (make-parameter write-payload/none))
-(define current-packet-seqnum/write (make-parameter 0))
-
-(define (write-payload payload op)
+(define (write-payload ssh payload)
   (with-output-to-port (current-error-port)
-    (lambda () (print "==== SENDING (" (string-length payload) ") " (wots (write payload)))))
-  ((current-payload-writer) payload op)
-  (current-packet-seqnum/write (+ 1 (current-packet-seqnum/write))))
+    (lambda () (print "==== SENDING #" (ssh-seqnum/write ssh) " " (wots (write payload)))))
+  ((ssh-payload-writer ssh) ssh payload)
+  (%ssh-seqnum/write-set! ssh (+ 1 (ssh-seqnum/write ssh))))
 
 (define (make-payload-writer/chacha20 key-main key-header)
   
   (define chacha-s-main (make-chacha key-main))
   (define chacha-s-header (make-chacha key-header))
 
-  (define (chacha-encrypt chacha counter str)
+  (define (chacha-encrypt ssh chacha counter str)
     (chacha-iv! chacha
-                (string->blob (conc "\x00\x00\x00\x00" (u2s (current-packet-seqnum/write))))
+                (string->blob (conc "\x00\x00\x00\x00" (u2s (ssh-seqnum/write ssh))))
                 counter)
     (chacha-encrypt! chacha str))
   
-  (define (write-payload/chacha20 payload op)
+  (define (write-payload/chacha20 ssh payload)
   
     (define pak (wots (payload-pad payload 8 0)))
     ;;(print "SENDING: " (wots (write pak)))
  
-    (define pak* (chacha-encrypt chacha-s-main #${01000000 00000000} pak))
+    (define pak* (chacha-encrypt ssh chacha-s-main #${01000000 00000000} pak))
     (define paklen (u2s (string-length pak)))
-    (define paklen* (chacha-encrypt chacha-s-header #${00000000 00000000} paklen))
+    (define paklen* (chacha-encrypt ssh chacha-s-header #${00000000 00000000} paklen))
   
-    (define poly (string->blob (chacha-encrypt chacha-s-main #${00000000 00000000} (make-string 32 #\null))))
+    (define poly (string->blob (chacha-encrypt ssh chacha-s-main #${00000000 00000000} (make-string 32 #\null))))
     (define auth ((symmetric-sign poly) (conc paklen* pak*) tag-only?: #t))
     (assert (= 16 (string-length auth)))
 
-    (display paklen* op)
-    (display pak* op)
-    (display auth op))
+    (let ((op (ssh-op ssh)))
+      (display paklen* op)
+      (display pak* op)
+      (display auth op)))
 
   write-payload/chacha20)
 
@@ -177,33 +191,31 @@
   (define packet_length (s2u (read-string/check 4 ip)))
   (read-string/check packet_length ip))
 
-(define (read-payload/none ip)
-  (packet-payload (read-buflen ip)))
-
-(define current-packet-seqnum/read  (make-parameter 0))
-(define current-payload-reader      (make-parameter read-payload/none))
+(define (read-payload/none ssh)
+  (packet-payload (read-buflen (ssh-ip ssh))))
 
 
 (define (make-payload-reader/chacha20 key-main key-header)
   (define chacha-header (make-chacha key-header))
   (define chacha-main   (make-chacha key-main))
 
-  (define (chacha-decrypt chacha counter ciphertext)
+  (define (chacha-decrypt ssh chacha counter ciphertext)
     (chacha-iv! chacha ;; TODO support 8-byte sequence numbers:
-                (string->blob (conc "\x00\x00\x00\x00" (u2s (current-packet-seqnum/read))))
+                (string->blob (conc "\x00\x00\x00\x00" (u2s (ssh-seqnum/read ssh))))
                 counter)
     (chacha-encrypt! chacha ciphertext))
   
-  (define (read-payload/chacha20 ip)
+  (define (read-payload/chacha20 ssh)
 
+    (define ip (ssh-ip ssh))
     (define paklen* (read-string/check 4 ip))
-    (define paklen (s2u (chacha-decrypt chacha-header #${00000000 00000000} paklen*)))
+    (define paklen (s2u (chacha-decrypt ssh chacha-header #${00000000 00000000} paklen*)))
     ;;(print "paklen " paklen)
-    (unless (< paklen 512) (error "paklen too big?" paklen))
+    (unless (< paklen (* 1024 64)) (error "paklen too big?" paklen))
     (define pak* (read-string/check paklen ip))
     (define mac  (read-string/check 16 ip))
     
-    (define poly-key (string->blob (chacha-decrypt chacha-main #${00000000 00000000} (make-string 32 #\null))))
+    (define poly-key (string->blob (chacha-decrypt ssh chacha-main #${00000000 00000000} (make-string 32 #\null))))
     ;; (print "poly-key " poly-key)
     (unless ((symmetric-verify poly-key) mac (conc paklen* pak*))
       (error "poly1305 signature failed (key,mac,content)"
@@ -211,20 +223,20 @@
              (string->blob mac)
              (string->blob (conc paklen* pak*))))
     
-    (define pak (chacha-decrypt chacha-main #${01000000 00000000} pak*))
+    (define pak (chacha-decrypt ssh chacha-main #${01000000 00000000} pak*))
     ;;(print "pak: " (wots (write pak)))
 
     (packet-payload pak))
   
   read-payload/chacha20)
 
-(define (read-payload ip)
+(define (read-payload ssh)
 
-  (let ((payload ((current-payload-reader) ip)))
+  (let ((payload ((ssh-payload-reader ssh) ssh)))
     (with-output-to-port (current-error-port)
       (lambda ()
-        (print "==== RECV #" (current-packet-seqnum/read) " " (wots (write payload)))))
-    (current-packet-seqnum/read (+ 1 (current-packet-seqnum/read)))
+        (print "==== RECV #" (ssh-seqnum/read ssh) " " (wots (write payload)))))
+    (%ssh-seqnum/read-set! ssh (+ 1 (ssh-seqnum/read ssh)))
     payload))
 
 ;; derive a 64 byte key from curve25519 shared secret and exchange

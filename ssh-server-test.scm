@@ -60,6 +60,9 @@
 (define (handle-client ip op)
   (eval `(begin (set! ip ',ip) (set! op ',op)))
 
+  (define ssh (make-ssh ip op))
+  (eval `(set! ssh ',ssh))
+
   (define hellosend "SSH-2.0-klmssh_0.1 testing123") ;; TODO: randomize
   (display (conc hellosend "\r\n") op)
   
@@ -68,11 +71,11 @@
 
   (define kexsend (wots (kx-payload)))
   ;;(print "kexsend: " (wots (write kexsend)))
-  (write-payload kexsend op)
-  (define kexrecv (read-payload ip))
+  (write-payload ssh kexsend)
+  (define kexrecv (read-payload ssh))
   ;;(print "kexrecv: " (wots (write kexrecv)))
 
-  (define next-packet (read-payload ip))
+  (define next-packet (read-payload ssh))
 
   (define clientpk
     (wifs next-packet
@@ -98,19 +101,18 @@
   (print "signature: " (string->blob signature))
 
 
-  (write-payload
-   (wots (write-byte 31) ;; SSH_MSG_KEXDH_REPLY
-         (write-signpk server-sign-pk)
-         (write-buflen serverpk)
-         (write-signpk signature))
-   op)
+  (write-payload ssh
+                 (wots (write-byte 31) ;; SSH_MSG_KEXDH_REPLY
+                       (write-signpk server-sign-pk)
+                       (write-buflen serverpk)
+                       (write-signpk signature)))
 
   (write-payload
+   ssh
    (wots (write-byte 21) ;; SSH_MSG_NEWKEYS
-         )
-   op)
+         ))
 
-  (define newkeys (read-payload ip))
+  (define newkeys (read-payload ssh))
 
   (define (kex-derive-key id)
     (string->blob (kex-derive-keys64 id sharedsecret hash sid)))
@@ -126,9 +128,9 @@
   (define key-c2s-main   (string->blob (substring (blob->string key-c2s) 0 32)))
   (define key-c2s-header (string->blob (substring (blob->string key-c2s) 32 64)))
 
-  (current-payload-reader (make-payload-reader/chacha20 key-c2s-main key-c2s-header))
+  (%ssh-payload-reader-set! ssh (make-payload-reader/chacha20 key-c2s-main key-c2s-header))
 
-  (define packet (read-payload ip))
+  (define packet (read-payload ssh))
   (print "client requesting service: " (wots (write packet)))
   (unless (equal? "\x05\x00\x00\x00\fssh-userauth" packet)
     (error "something's not right here"))
@@ -136,69 +138,64 @@
   (define key-s2c-main   (string->blob (substring (blob->string key-s2c) 0 32)))
   (define key-s2c-header (string->blob (substring (blob->string key-s2c) 32 64)))
 
-  (current-payload-writer (make-payload-writer/chacha20 key-s2c-main key-s2c-header))
-  (write-payload "\x06\x00\x00\x00\fssh-userauth" op)
-  (print "next: " (wots (write (read-payload ip))))
+  (%ssh-payload-writer-set! ssh (make-payload-writer/chacha20 key-s2c-main key-s2c-header))
+  (write-payload ssh "\x06\x00\x00\x00\fssh-userauth")
 
-  (write-payload (wots (write-byte SSH_MSG_USERAUTH_SUCCESS)) op)
+
+  (print "next: " (wots (write (read-payload ssh))))
+
+  (write-payload ssh (wots (write-byte SSH_MSG_USERAUTH_SUCCESS)))
 
   (print "expecting session OPEN here")
-  (read-payload ip) ;;; e.g.  "Z\x00\x00\x00\asession\x00\x00\x00\x01\x00 \x00\x00\x00\x00\x80\x00"
+  (read-payload ssh) ;;; e.g.  "Z\x00\x00\x00\asession\x00\x00\x00\x01\x00 \x00\x00\x00\x00\x80\x00"
 
   ;; TODO: parse this properly
   (define channelid "\x00\x00\x00\x01") ;; OpenSSH on arch linux
   ;; (define channelid "\x00\x00\x00\x00") ;; OpenSSH on mac
 
-  (write-payload (wots
+  (write-payload ssh
+                 (wots
                   (write-byte SSH_MSG_CHANNEL_OPEN_CONFIRMATION)
-                  (display channelid) ;; sender cid
+                  (display channelid)          ;; sender cid
                   (display "\x00\x00\x00\x01") ;; my cid
                   (display (u2s #x200000))
-                  (display (u2s #x008000)))
-                 op)
+                  (display (u2s #x008000))))
 
   (print "expecting exec CHANNEL REQUEST (#\\b) here")
   ;; eg   "b\x00\x00\x00\x02\x00\x00\x00\x04exec\x01\x00\x00\x00\techo test"
-  (read-payload ip)
+  (read-payload ssh)
 
-  (write-payload (wots (write-byte SSH_MSG_CHANNEL_DATA)
+  (write-payload ssh
+                 (wots (write-byte SSH_MSG_CHANNEL_DATA)
                        (display channelid)
-                       (write-buflen "test from Chicken!\n"))
-                 op)
+                       (write-buflen "CHISSHEN> ")))
 
-  (write-payload (wots (write-byte SSH_MSG_CHANNEL_SUCCESS)
-                       (display channelid))
-                 op)
-
-
-  (write-payload
-   (wots
-    (write-byte SSH_MSG_CHANNEL_REQUEST)
-    (display channelid)
-    (write-buflen    "exit-status")
-    (display "\x00")              ;; want reply I think
-    (display "\x00\x00\x00\x06")) ;; exit_status
-   op)
-
-  (write-payload (wots (write-byte SSH_MSG_CHANNEL_EOF)
-                       (display channelid))
-                 op)
-
-  (write-payload (wots (write-byte SSH_MSG_CHANNEL_CLOSE)
-                       (display channelid))
-                 op)
+  (write-payload ssh
+                 (wots (write-byte SSH_MSG_CHANNEL_SUCCESS)
+                       (display channelid)))
 
 
-  (print "expecting stdin SSH_MSG_CHANNEL_DATA #\\^ ")
-  (read-payload ip)
-  (print "expecting eof SSH_MSG_CHANNEL_EOF #\\a")
-  (read-payload ip)
-  (print "expecting channel close (#\a)")
-  (read-payload ip)
-  (print "expecting disconnect \\x01 ")
-  (read-payload ip)
-  )
+  (write-payload ssh
+                 (wots
+                  (write-byte SSH_MSG_CHANNEL_REQUEST)
+                  (display channelid)
+                  (write-buflen    "exit-status")
+                  (display "\x00")              ;; want reply I think
+                  (display "\x00\x00\x00\x06")) ;; exit_status
+                 )
 
+  (quote
+   (write-payload ssh (wots (write-byte SSH_MSG_CHANNEL_EOF)
+                            (display channelid))))
+
+  (quote
+   (write-payload ssh (wots (write-byte SSH_MSG_CHANNEL_CLOSE)
+                            (display channelid))))
+
+
+  (let loop ()
+    (read-payload ssh)
+    (loop)))
 
 (define ss (tcp-listen 2222))
 (let loop ()
