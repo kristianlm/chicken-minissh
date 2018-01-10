@@ -94,7 +94,7 @@
                  sharedsecret))  
 
   (define hash (sha256 hashing))
-  (define sid hash) ;; session_id
+  (%ssh-sid-set! ssh hash) ;; first exchange has = session id (unchanged, even after rekeying)
   
   (print "signing " (string->blob hash) " pk " (string->blob server-sign-pk))
   (define signature (substring ((asymmetric-sign (string->blob server-sign-sk)) hash) 0 64))
@@ -115,7 +115,7 @@
   (define newkeys (read-payload ssh))
 
   (define (kex-derive-key id)
-    (string->blob (kex-derive-keys64 id sharedsecret hash sid)))
+    (string->blob (kex-derive-keys64 id sharedsecret hash (ssh-sid ssh))))
 
   ;;(print "derived key A" (kex-derive-key "A"))
   ;;(print "derived key B" (kex-derive-key "B"))
