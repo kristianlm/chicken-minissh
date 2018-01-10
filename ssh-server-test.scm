@@ -151,6 +151,7 @@
 
   ;; TODO: parse this properly
   (define channelid "\x00\x00\x00\x01") ;; OpenSSH on arch linux
+  (eval `(set! channelid ',channelid))
   ;; (define channelid "\x00\x00\x00\x00") ;; OpenSSH on mac
 
   (write-payload ssh
