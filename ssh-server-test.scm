@@ -109,7 +109,7 @@
                        (write-signpk signature)))
 
   (write-payload ssh
-                 (wots (write-byte SSH_MSG_NEWKEYS)))
+                 (wots (write-byte (payload-type->int 'SSH_MSG_NEWKEYS))))
 
   (define newkeys (read-payload ssh))
 
@@ -144,14 +144,14 @@
 
   ;; write welcome banner
   (quote
-   (write-payload ssh (wots (write-byte SSH_MSG_USERAUTH_BANNER)
+   (write-payload ssh (wots (write-byte (payload-type->int 'SSH_MSG_USERAUTH_BANNER))
                             (write-buflen "access granted. welcome. don't do evil, do good.\n")
                             (write-buflen "none"))))
 
 
   (print "next: " (wots (write (read-payload ssh))))
 
-  (write-payload ssh (wots (write-byte SSH_MSG_USERAUTH_SUCCESS)))
+  (write-payload ssh (wots (write-byte (payload-type->int 'SSH_MSG_USERAUTH_SUCCESS))))
 
   (print "expecting session OPEN here")
   (read-payload ssh) ;;; e.g.  "Z\x00\x00\x00\asession\x00\x00\x00\x01\x00 \x00\x00\x00\x00\x80\x00"
@@ -163,7 +163,7 @@
 
   (write-payload ssh
                  (wots
-                  (write-byte SSH_MSG_CHANNEL_OPEN_CONFIRMATION)
+                  (write-byte (payload-type->int 'SSH_MSG_CHANNEL_OPEN_CONFIRMATION))
                   (display channelid)          ;; sender cid
                   (display "\x00\x00\x00\x01") ;; my cid
                   (display (u2s #x200000))
@@ -174,18 +174,18 @@
   (read-payload ssh)
 
   (write-payload ssh
-                 (wots (write-byte SSH_MSG_CHANNEL_DATA)
+                 (wots (write-byte (payload-type->int 'SSH_MSG_CHANNEL_DATA))
                        (display channelid)
                        (write-buflen "CHISSH> ")))
 
   (write-payload ssh
-                 (wots (write-byte SSH_MSG_CHANNEL_SUCCESS)
+                 (wots (write-byte (payload-type->int 'SSH_MSG_CHANNEL_SUCCESS))
                        (display channelid)))
 
 
   (write-payload ssh
                  (wots
-                  (write-byte SSH_MSG_CHANNEL_REQUEST)
+                  (write-byte (payload-type->int 'SSH_MSG_CHANNEL_REQUEST))
                   (display channelid)
                   (write-buflen "exit-status")
                   (display "\x00") ;; «want reply» I think
@@ -193,11 +193,11 @@
                  )
 
   (quote
-   (write-payload ssh (wots (write-byte SSH_MSG_CHANNEL_EOF)
+   (write-payload ssh (wots (write-byte (payload-type->int 'SSH_MSG_CHANNEL_EOF))
                             (display channelid))))
 
   (quote
-   (write-payload ssh (wots (write-byte SSH_MSG_CHANNEL_CLOSE)
+   (write-payload ssh (wots (write-byte (payload-type->int 'SSH_MSG_CHANNEL_CLOSE))
                             (display channelid))))
 
 

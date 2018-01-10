@@ -22,37 +22,41 @@
     (warning "outpit? " (ssh-op ssh) op)
     ssh))
 
-(begin ;; from https://tools.ietf.org/html/rfc4253#section-12
-  (define SSH_MSG_DISCONNECT             1)
-  (define SSH_MSG_IGNORE                 2)
-  (define SSH_MSG_UNIMPLEMENTED          3)
-  (define SSH_MSG_DEBUG                  4)
-  (define SSH_MSG_SERVICE_REQUEST        5)
-  (define SSH_MSG_SERVICE_ACCEPT         6)
-  (define SSH_MSG_KEXINIT                20)
-  (define SSH_MSG_NEWKEYS                21))
+(define *payload-types*
+  `( ;; from https://tools.ietf.org/html/rfc4253#section-12
+    (SSH_MSG_DISCONNECT                 . 1)
+    (SSH_MSG_IGNORE                     . 2)
+    (SSH_MSG_UNIMPLEMENTED              . 3)
+    (SSH_MSG_DEBUG                      . 4)
+    (SSH_MSG_SERVICE_REQUEST            . 5)
+    (SSH_MSG_SERVICE_ACCEPT             . 6)
+    (SSH_MSG_KEXINIT                   . 20)
+    (SSH_MSG_NEWKEYS                   . 21)
+    ;; from https://tools.ietf.org/html/rfc4252#section-6
+    (SSH_MSG_USERAUTH_REQUEST          . 50)
+    (SSH_MSG_USERAUTH_FAILURE          . 51)
+    (SSH_MSG_USERAUTH_SUCCESS          . 52)
+    (SSH_MSG_USERAUTH_BANNER           . 53)
+    ;; from https://tools.ietf.org/html/rfc4254#section-9
+    (SSH_MSG_GLOBAL_REQUEST            . 80)
+    (SSH_MSG_REQUEST_SUCCESS           . 81)
+    (SSH_MSG_REQUEST_FAILURE           . 82)
+    (SSH_MSG_CHANNEL_OPEN              . 90)
+    (SSH_MSG_CHANNEL_OPEN_CONFIRMATION . 91)
+    (SSH_MSG_CHANNEL_OPEN_FAILURE      . 92)
+    (SSH_MSG_CHANNEL_WINDOW_ADJUST     . 93)
+    (SSH_MSG_CHANNEL_DATA              . 94)
+    (SSH_MSG_CHANNEL_EXTENDED_DATA     . 95)
+    (SSH_MSG_CHANNEL_EOF               . 96)
+    (SSH_MSG_CHANNEL_CLOSE             . 97)
+    (SSH_MSG_CHANNEL_REQUEST           . 98)
+    (SSH_MSG_CHANNEL_SUCCESS           . 99)
+    (SSH_MSG_CHANNEL_FAILURE          . 100)))
 
-(begin ;; from https://tools.ietf.org/html/rfc4252#section-6
-  (define SSH_MSG_USERAUTH_REQUEST            50)
-  (define SSH_MSG_USERAUTH_FAILURE            51)
-  (define SSH_MSG_USERAUTH_SUCCESS            52)
-  (define SSH_MSG_USERAUTH_BANNER             53))
-
-(begin ;; from https://tools.ietf.org/html/rfc4254#section-9
-  (define SSH_MSG_GLOBAL_REQUEST                  80)
-  (define SSH_MSG_REQUEST_SUCCESS                 81)
-  (define SSH_MSG_REQUEST_FAILURE                 82)
-  (define SSH_MSG_CHANNEL_OPEN                    90)
-  (define SSH_MSG_CHANNEL_OPEN_CONFIRMATION       91)
-  (define SSH_MSG_CHANNEL_OPEN_FAILURE            92)
-  (define SSH_MSG_CHANNEL_WINDOW_ADJUST           93)
-  (define SSH_MSG_CHANNEL_DATA                    94)
-  (define SSH_MSG_CHANNEL_EXTENDED_DATA           95)
-  (define SSH_MSG_CHANNEL_EOF                     96)
-  (define SSH_MSG_CHANNEL_CLOSE                   97)
-  (define SSH_MSG_CHANNEL_REQUEST                 98)
-  (define SSH_MSG_CHANNEL_SUCCESS                 99)
-  (define SSH_MSG_CHANNEL_FAILURE                100))
+(define (payload-type->int payload-type)
+  (or (alist-ref payload-type *payload-types*)
+      (error "payload-type not found" payload-type)))
+;; (payload-type->int 'SSH_MSG_CHANNEL_EOF)
 
 (define (sha256 str)
   (message-digest-string (sha256-primitive) str 'string))
@@ -197,6 +201,13 @@
   (define payload_end (- (string-length packet) padding_length))
   (substring packet 1 payload_end))
 
+(define (payload-type payload)
+  (let* ((t (char->integer (string-ref payload 0)))
+         (pair (find (lambda (x) (= (cdr x) t)) *payload-types*)))
+    (and pair (car pair))))
+
+;; (payload-type "\x06") (payload-type "\xff")
+
 (define (read-buflen #!optional (ip (current-input-port)))
   (define packet_length (s2u (read-string/check 4 ip)))
   (read-string/check packet_length ip))
@@ -245,7 +256,8 @@
   (let ((payload ((ssh-payload-reader ssh) ssh)))
     (with-output-to-port (current-error-port)
       (lambda ()
-        (print "==== RECV #" (ssh-seqnum/read ssh) " " (wots (write payload)))))
+        (print "==== RECV #" (ssh-seqnum/read ssh) " <" (payload-type payload) "> "
+               (wots (write payload)))))
     (%ssh-seqnum/read-set! ssh (+ 1 (ssh-seqnum/read ssh)))
     payload))
 
