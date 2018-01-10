@@ -238,3 +238,51 @@
   (define K1 (sha256 (string-append (u2s (string-length K)) K H c session-id)))
   (define K2 (sha256 (string-append (u2s (string-length K)) K H K1)))
   (string-append K1 K2))
+
+
+;; ==================== parsing
+
+(define (SSH_MSG_KEXINIT)
+
+  (define cookie (read-string 16)) ;; random bytes
+  (print "cookie: " (tostr cookie))
+
+  (define (read-name-list)
+    (define len (s2u (read-string 4)))
+    (string-split (read-string len) ","))
+
+  (define-syntax pprint
+    (syntax-rules ()
+      ((_ var)
+       (begin
+         (print 'var " (" (length var) ")")
+         (for-each (lambda (name) (print "  " (tostr name))) var)))))
+
+  (define kex_algorithms (read-name-list))
+  (define server_host_key_algorithms (read-name-list))
+  (define encryption_algorithms_client_to_server (read-name-list))
+  (define encryption_algorithms_server_to_client (read-name-list))
+  (define mac_algorithms_client_to_server (read-name-list))
+  (define mac_algorithms_server_to_client (read-name-list))
+  (define compression_algorithms_client_to_server (read-name-list))
+  (define compression_algorithms_server_to_client (read-name-list))
+  (define languages_client_to_server (read-name-list))
+  (define languages_server_to_client (read-name-list))
+
+  (define first_kex_packet_follows (read-byte))
+  (define reserved00 (s2u (read-string 4)))
+  (assert (= 0 reserved00))
+
+  (pprint kex_algorithms)
+  (pprint server_host_key_algorithms)
+  (pprint encryption_algorithms_client_to_server)
+  (pprint encryption_algorithms_server_to_client)
+  (pprint mac_algorithms_client_to_server)
+  (pprint mac_algorithms_server_to_client)
+  (pprint compression_algorithms_client_to_server)
+  (pprint compression_algorithms_server_to_client)
+  (pprint languages_client_to_server)
+  (pprint languages_server_to_client)
+  (print "first_kex_packet_follows: " first_kex_packet_follows)
+
+  )
