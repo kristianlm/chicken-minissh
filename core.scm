@@ -216,7 +216,7 @@
 
 (define (payload-type payload)
   (let* ((t (char->integer (string-ref payload 0)))
-         (pair (find (lambda (x) (= (cdr x) t)) *payload-types*)))
+         (pair (rassoc t *payload-types*)))
     (and pair (car pair))))
 
 ;; (payload-type "\x06") (payload-type "\xff")
