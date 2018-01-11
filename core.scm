@@ -582,8 +582,7 @@
   ;; TODO: mark channel as "closed"?
   (void))
 
-(define (handle-channel-request ssh cid type reply? rest)
-  ;; TODO: process type somehow ("exec", "shell", "pty")
+(define (handle-channel-request ssh cid type want-reply? . rest)
   (write-payload ssh
                  (wots (write-byte (payload-type->int 'channel-success))
                        (write-u32 cid))))

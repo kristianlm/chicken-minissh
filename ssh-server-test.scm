@@ -22,7 +22,13 @@
       (match parsed
         (('channel-data cid str)
          (ssh-channel-write (ssh-channel ssh cid) (string-upcase str)))
-        (else #t)))
+        (('channel-request cid 'exec reply? "test")
+         (ssh-channel-write (ssh-channel ssh cid)
+                            "seems to be working.\n"))
+        (('channel-request cid 'exec reply? command)
+         (ssh-channel-write (ssh-channel ssh cid)
+                            (conc "sorry, I don't want to run `" command "`\n")))
+        (else (print "unhandled " (wots (write parsed))))))
     (print "RELOOP")
     (loop)))
 

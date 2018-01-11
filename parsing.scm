@@ -39,15 +39,35 @@
     (window-size (read-u32))
     (max-packet-size (read-u32)))))
 
+;; see https://tools.ietf.org/html/rfc4254#section-6.5
 (define (parse-channel-request payload)
   (wifs
    payload
-   (make-parser/values
-    (payload-type (read-payload-type expect: 'channel-request))
-    (cid (read-u32))
-    (request-type (read-buflen))
-    (want-reply (read-byte))
-    (rest (read-string #f)))))
+   (let* ((payload-type (read-payload-type expect: 'channel-request))
+          (cid (read-u32))
+          (request-type (string->symbol (read-buflen)))
+          (want-reply (if (= 0 (read-byte)) #f #t)))
+     `(,payload-type
+       ,cid ,request-type ,want-reply
+       ,@(case request-type
+           ((shell) '())
+           ((exec)
+            (make-parser/values
+             (command (read-buflen))))
+           ((subsystem) (make-parser/values (name (read-buflen))))
+           ((env)
+            (make-parser/values
+             (name (read-buflen))
+             (value (read-buflen))))
+           ((pty-req)
+            (make-parser/values
+             (term             (read-buflen))
+             (width/characters (read-u32))
+             (height/rows      (read-u32))
+             (width/pixels     (read-u32))
+             (height/pixels    (read-u32))
+             (modes            (read-buflen))))
+           (else (list (read-string #f))))))))
 
 (define (parse-channel-data payload)
   (wifs
