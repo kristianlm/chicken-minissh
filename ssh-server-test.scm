@@ -7,13 +7,6 @@
   (base64-decode (conc "iWtDZXdl/UeN3q7sq2QWN2Ymv3ggveJRBvn1a+rMC5oz"
                        "ziKH/lXlMW8jcNK4xeJLBrkSpSoLtxgz8nT24inEtQ==")))
 
-(define (write-signpk pk)
-  (define type "ssh-ed25519")
-  ;;(assert (= (string-length pk) 32))
-  (write-buflen
-   (conc (u2s (string-length type)) type
-         (u2s (string-length pk))   pk)))
-
 (define (handle-client ip op)
 
   (define ssh (make-ssh ip op))

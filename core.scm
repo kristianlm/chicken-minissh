@@ -326,6 +326,12 @@
   (blob->string (scalarmult (string->blob server-sk)
                             (string->blob client-pk))))
 
+(define (write-signpk pk)
+  (define type "ssh-ed25519")
+  ;;(assert (= (string-length pk) 32))
+  (write-buflen
+   (conc (u2s (string-length type)) type
+         (u2s (string-length pk))   pk)))
 
 ;; produce hash H according to https://tools.ietf.org/html/rfc4253#section-8
 (define (exchange-hash hellorecv hellosend
@@ -413,6 +419,7 @@
   (print "first_kex_packet_follows: " first_kex_packet_follows)
 
   )
+
 
 ;; kex/read is an optional string representing the received KEXINIT
 ;; payload (reads next packet if not specified).
