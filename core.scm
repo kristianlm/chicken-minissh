@@ -413,3 +413,107 @@
   (print "first_kex_packet_follows: " first_kex_packet_follows)
 
   )
+
+;; kex/read is an optional string representing the received KEXINIT
+;; payload (reads next packet if not specified).
+(define (run-kex ssh #!optional kex/read)
+
+  (unless (and (ssh-hello/read ssh)
+               (ssh-hello/write ssh))
+    (error "run-protocol-exchange not run"))
+
+  (define kex/write (wots (kx-payload)))
+  (write-payload ssh kex/write)
+
+  (print "EXPETCING KEX READ")
+  (unless kex/read
+    (set! kex/read (read-payload/expect ssh 'kexinit)))
+  (print "GOT IT")
+
+  (define kexdh-init (read-payload/expect ssh 'kexdh-init))
+  (define clientpk (wifs kexdh-init
+                         (read-byte) ;; ignore payload type
+                         (read-buflen)))
+
+  ;; generate temporary keypair for session
+  (define-values (serversk serverpk)
+    (make-curve25519-keypair))
+
+  (define sharedsecret (string->mpint (curve25519-dh serversk clientpk)))
+
+  (define hash
+    (exchange-hash (ssh-hello/read ssh)
+                   (ssh-hello/write ssh)
+                   kex/read kex/write
+                   server-sign-pk
+                   clientpk serverpk
+                   sharedsecret))
+
+  ;; first exchange has = session id (unchanged, even after rekeying)
+  (unless (ssh-sid ssh)
+    (%ssh-sid-set! ssh hash))
+
+  (define signature (substring ((asymmetric-sign (string->blob server-sign-sk)) hash) 0 64))
+
+  (write-payload ssh
+                 (wots (write-byte (payload-type->int 'kexdh-reply))
+                       (write-signpk server-sign-pk)
+                       (write-buflen serverpk)
+                       (write-signpk signature)))
+
+  (write-payload ssh
+                 (wots (write-byte (payload-type->int 'newkeys))))
+
+  (read-payload/expect ssh 'newkeys)
+
+  (define (kex-derive-key id)
+    (string->blob (kex-derive-keys64 id sharedsecret hash (ssh-sid ssh))))
+
+  ;;(print "derived key A" (kex-derive-key "A"))
+  ;;(print "derived key B" (kex-derive-key "B"))
+  (define key-c2s (kex-derive-key "C"))
+  (define key-s2c (kex-derive-key "D"))
+  ;;(print "derived key E" (kex-derive-key "E"))
+  ;;(print "derived key F" (kex-derive-key "F"))
+
+  (define key-c2s-main   (string->blob (substring (blob->string key-c2s) 0 32)))
+  (define key-c2s-header (string->blob (substring (blob->string key-c2s) 32 64)))
+
+  (define key-s2c-main   (string->blob (substring (blob->string key-s2c) 0 32)))
+  (define key-s2c-header (string->blob (substring (blob->string key-s2c) 32 64)))
+
+  ;; TODO: add a handler for rekeying here
+
+  (%ssh-payload-reader-set! ssh (make-payload-reader/chacha20 key-c2s-main key-c2s-header))
+  (%ssh-payload-writer-set! ssh (make-payload-writer/chacha20 key-s2c-main key-s2c-header)))
+
+(define (channel-open-parse payload)
+  (wifs
+   payload
+   (let ((payload-type (read-byte)))
+     (unless (eq? payload-type (payload-type->int 'channel-open))
+       (error (conc "expected " payload-type ", got ") payload-type)))
+   (let ((channel-type (read-buflen))
+         (sender-channel (read-u32))
+         (window-size (read-u32))
+         (max-packet-size (read-u32)))
+     (values channel-type sender-channel window-size max-packet-size))))
+
+(define (channel-open-handle payload)
+  (receive (type cid ws max)
+      (channel-open-parse payload)
+
+    (set! (ssh-channel ssh cid)
+          (make-ssh-channel ssh cid
+                            0 0   ;; current byte counts
+                            100   ;; my window size
+                            ws)))) ;; their window size
+
+(define (ssh-channel-write ch str)
+  (assert (string? str))
+  (write-payload (ssh-channel-ssh)
+                 (wots (write-byte (payload-type->int 'channel-data))
+                       (write-u32 (ssh-channel-cid ch))
+                       (write-buflen str)))
+  (%ssh-channel-bytes/write-set!
+   ch (+ (string-length str) (ssh-channel-bytes/write ch))))
