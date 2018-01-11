@@ -40,7 +40,7 @@
 
 (define ssh-channel
   (getter-with-setter
-   (lambda (ssh cid) (hash-table-ref (ssh-channels ssh) cid))
+   (lambda (ssh cid)     (hash-table-ref  (ssh-channels ssh) cid))
    (lambda (ssh cid val) (hash-table-set! (ssh-channels ssh) cid val))))
 
 (define-record-type ssh-channel
@@ -568,7 +568,6 @@
   (define ch (ssh-channel ssh cid))
   (%ssh-channel-bytes/read-set!
    ch (- (ssh-channel-bytes/read ch) (string-length str)))
-  (print "incoming " (ssh-channel-bytes/read ch))
 
   (when (<= (ssh-channel-bytes/read ch) 0)
     (%ssh-channel-bytes/read-set!
