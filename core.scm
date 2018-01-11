@@ -4,8 +4,8 @@
 (define-record-type ssh
   (%make-ssh ip op sid seqnum/read seqnum/write payload-reader payload-writer)
   ssh?
-  (ip ssh-ip %ssh-ip-set!)
-  (op ssh-op %ssh-op-set!)
+  (ip ssh-ip)
+  (op ssh-op)
   (sid ssh-sid %ssh-sid-set!)
   (seqnum/read  ssh-seqnum/read  %ssh-seqnum/read-set!)
   (seqnum/write ssh-seqnum/write %ssh-seqnum/write-set!)
