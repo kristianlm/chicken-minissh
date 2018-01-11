@@ -1,21 +1,11 @@
 (use srfi-18)
 (include "core.scm")
 
-(begin
-  (define scalarmult-base #${09000000 00000000    00000000 00000000
-                             00000000 00000000    00000000 00000000})
-  
-  (define serversk (blob->string #${ed523a02c8a8cbd7334944228b842b3d
-                                    dc4a9820e95292791ede88acf91cdd70}))
-  
-  (define serverpk (blob->string (scalarmult (string->blob serversk)
-                                             scalarmult-base)))
-
-  (define server-sign-pk
-    (base64-decode "M84ih/5V5TFvI3DSuMXiSwa5EqUqC7cYM/J09uIpxLU="))
-  (define server-sign-sk
-    (base64-decode (conc "iWtDZXdl/UeN3q7sq2QWN2Ymv3ggveJRBvn1a+rMC5oz"
-                         "ziKH/lXlMW8jcNK4xeJLBrkSpSoLtxgz8nT24inEtQ=="))))
+(define server-sign-pk
+  (base64-decode "M84ih/5V5TFvI3DSuMXiSwa5EqUqC7cYM/J09uIpxLU="))
+(define server-sign-sk
+  (base64-decode (conc "iWtDZXdl/UeN3q7sq2QWN2Ymv3ggveJRBvn1a+rMC5oz"
+                       "ziKH/lXlMW8jcNK4xeJLBrkSpSoLtxgz8nT24inEtQ==")))
 
 (define (write-signpk pk)
   (define type "ssh-ed25519")
@@ -23,12 +13,6 @@
   (write-buflen
    (conc (u2s (string-length type)) type
          (u2s (string-length pk))   pk)))
-
-;; (wots (write-signpk "x123456789 123456789 12345678912"))
-
-(define (curve25519-dh server-sk client-pk)
-  (blob->string (scalarmult (string->blob server-sk)
-                            (string->blob client-pk))))
 
 (define (handle-client ip op)
   (eval `(begin (set! ip ',ip) (set! op ',op)))
@@ -58,6 +42,9 @@
           (print "packet type: " (read-byte))
           (read-buflen)))
   (eval `(set! clientpk ,clientpk))
+
+  (define-values (serversk serverpk)
+    (make-curve25519-keypair))
 
   (define sharedsecret (string->mpint (curve25519-dh serversk clientpk)))
   (eval `(set! K ,sharedsecret))

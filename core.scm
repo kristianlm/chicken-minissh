@@ -283,6 +283,21 @@
              (payload-type payload) payload))
     payload))
 
+(define (make-curve25519-keypair)
+
+  (define scalarmult-base #${09000000 00000000    00000000 00000000
+                             00000000 00000000    00000000 00000000})
+
+  (let* ((sk (read-string asymmetric-box-secretkeybytes
+                          (current-entropy-port)))
+         (pk (blob->string (scalarmult (string->blob sk)
+                                       scalarmult-base))))
+    (values sk pk)))
+
+(define (curve25519-dh server-sk client-pk)
+  (blob->string (scalarmult (string->blob server-sk)
+                            (string->blob client-pk))))
+
 
 ;; produce hash H according to https://tools.ietf.org/html/rfc4253#section-8
 (define (exchange-hash hellorecv hellosend
