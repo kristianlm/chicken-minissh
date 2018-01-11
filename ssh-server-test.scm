@@ -129,14 +129,13 @@
   (read-payload/expect ssh 'channel-request)
 
   (write-payload ssh
-                 (wots (write-byte (payload-type->int 'channel-data))
-                       (display channelid)
-                       (write-buflen "CHISSH> ")))
-
-  (write-payload ssh
                  (wots (write-byte (payload-type->int 'channel-success))
                        (display channelid)))
 
+  (write-payload ssh
+                 (wots (write-byte (payload-type->int 'channel-data))
+                       (display channelid)
+                       (write-buflen "CHISSH> ")))
 
   (write-payload ssh
                  (wots
