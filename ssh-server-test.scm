@@ -103,15 +103,15 @@
 
 
   (write-payload ssh
-                 (wots (write-byte (payload-type->int 'SSH_MSG_KEXDH_REPLY))
+                 (wots (write-byte (payload-type->int 'kexdh-reply))
                        (write-signpk server-sign-pk)
                        (write-buflen serverpk)
                        (write-signpk signature)))
 
   (write-payload ssh
-                 (wots (write-byte (payload-type->int 'SSH_MSG_NEWKEYS))))
+                 (wots (write-byte (payload-type->int 'newkeys))))
 
-  (read-payload/expect ssh 'SSH_MSG_NEWKEYS)
+  (read-payload/expect ssh 'newkeys)
 
   (define (kex-derive-key id)
     (string->blob (kex-derive-keys64 id sharedsecret hash (ssh-sid ssh))))
@@ -134,7 +134,7 @@
   (%ssh-payload-writer-set! ssh (make-payload-writer/chacha20 key-s2c-main key-s2c-header))
 
 
-  (define packet (read-payload/expect ssh 'SSH_MSG_SERVICE_REQUEST))
+  (define packet (read-payload/expect ssh 'service-request))
   (unless (equal? "\x05\x00\x00\x00\fssh-userauth" packet)
     (error "something's not right here"))
 
@@ -142,16 +142,16 @@
 
   ;; write welcome banner
   (quote
-   (write-payload ssh (wots (write-byte (payload-type->int 'SSH_MSG_USERAUTH_BANNER))
+   (write-payload ssh (wots (write-byte (payload-type->int 'userauth-banner))
                             (write-buflen "access granted. welcome. don't do evil, do good.\n")
                             (write-buflen "none"))))
 
 
-  (read-payload/expect ssh 'SSH_MSG_USERAUTH_REQUEST)
-  (write-payload ssh (wots (write-byte (payload-type->int 'SSH_MSG_USERAUTH_SUCCESS))))
+  (read-payload/expect ssh 'userauth-request)
+  (write-payload ssh (wots (write-byte (payload-type->int 'userauth-success))))
 
    ;;; e.g.  "Z\x00\x00\x00\asession\x00\x00\x00\x01\x00 \x00\x00\x00\x00\x80\x00"
-  (read-payload/expect ssh 'SSH_MSG_CHANNEL_OPEN)
+  (read-payload/expect ssh 'channel-open)
 
   ;; TODO: parse this properly
   (define channelid "\x00\x00\x00\x01") ;; OpenSSH on arch linux
@@ -160,27 +160,27 @@
 
   (write-payload ssh
                  (wots
-                  (write-byte (payload-type->int 'SSH_MSG_CHANNEL_OPEN_CONFIRMATION))
+                  (write-byte (payload-type->int 'channel-open-confirmation))
                   (display channelid)          ;; sender cid
                   (display "\x00\x00\x00\x01") ;; my cid
                   (display (u2s #x200000))
                   (display (u2s #x008000))))
 
-  (read-payload/expect ssh 'SSH_MSG_CHANNEL_REQUEST)
+  (read-payload/expect ssh 'channel-request)
 
   (write-payload ssh
-                 (wots (write-byte (payload-type->int 'SSH_MSG_CHANNEL_DATA))
+                 (wots (write-byte (payload-type->int 'channel-data))
                        (display channelid)
                        (write-buflen "CHISSH> ")))
 
   (write-payload ssh
-                 (wots (write-byte (payload-type->int 'SSH_MSG_CHANNEL_SUCCESS))
+                 (wots (write-byte (payload-type->int 'channel-success))
                        (display channelid)))
 
 
   (write-payload ssh
                  (wots
-                  (write-byte (payload-type->int 'SSH_MSG_CHANNEL_REQUEST))
+                  (write-byte (payload-type->int 'channel-request))
                   (display channelid)
                   (write-buflen "exit-status")
                   (display "\x00") ;; «want reply» I think
@@ -188,11 +188,11 @@
                  )
 
   (quote
-   (write-payload ssh (wots (write-byte (payload-type->int 'SSH_MSG_CHANNEL_EOF))
+   (write-payload ssh (wots (write-byte (payload-type->int 'channel-eof))
                             (display channelid))))
 
   (quote
-   (write-payload ssh (wots (write-byte (payload-type->int 'SSH_MSG_CHANNEL_CLOSE))
+   (write-payload ssh (wots (write-byte (payload-type->int 'channel-close))
                             (display channelid))))
 
 
