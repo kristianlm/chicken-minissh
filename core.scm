@@ -6,6 +6,7 @@
              hello/read hello/write
              seqnum/read    seqnum/write
              payload-reader payload-writer
+             handlers
              channels)
   ssh?
   (ip ssh-ip)
@@ -17,6 +18,7 @@
   (seqnum/write ssh-seqnum/write %ssh-seqnum/write-set!)
   (payload-reader ssh-payload-reader %ssh-payload-reader-set!)
   (payload-writer ssh-payload-writer %ssh-payload-writer-set!)
+  (handlers ssh-handlers)
   (channels ssh-channels))
 
 
@@ -28,7 +30,13 @@
              #f 0 0
              read-payload/none
              write-payload/none
+             (make-hash-table)
              (make-hash-table)))
+
+(define ssh-handler
+  (getter-with-setter
+   (lambda (ssh pt)     (hash-table-ref  (ssh-handlers ssh) pt (lambda () #f)))
+   (lambda (ssh pt val) (hash-table-set! (ssh-handlers ssh) pt val))))
 
 (define ssh-channel
   (getter-with-setter
@@ -593,35 +601,46 @@
   (%ssh-channel-bytes/write-set!
    ch (- (ssh-channel-bytes/write ch) len)))
 
-(define *payload-managers*
-  `((disconnect            ,parse-disconnect      ,#f)
-    (service-request       ,parse-service-request ,#f)
-    (channel-open          ,parse-channel-open    ,handle-channel-open)
-    (channel-request       ,parse-channel-request ,handle-channel-request)
-    (channel-data          ,parse-channel-data    ,handle-channel-data)
-    (channel-eof           ,parse-channel-eof     ,handle-channel-eof)
-    (channel-close         ,parse-channel-close   ,handle-channel-close)))
+(define *payload-parsers*
+  `((disconnect       .  ,parse-disconnect)
+    (service-request  .  ,parse-service-request)
+    (channel-open     .  ,parse-channel-open)
+    (channel-request  .  ,parse-channel-request)
+    (channel-data     .  ,parse-channel-data)
+    (channel-eof      .  ,parse-channel-eof)
+    (channel-close    .  ,parse-channel-close)))
+
+(define (ssh-setup-channel-handlers! ssh)
+  ;; it's probably important to not allow this too early:
+  (assert (ssh-hello/write ssh))
+  (assert (ssh-hello/read ssh))
+  ;; TODO: check for user too
+  (set! (ssh-handler ssh 'channel-open)     handle-channel-open)
+  (set! (ssh-handler ssh 'channel-request)  handle-channel-request)
+  (set! (ssh-handler ssh 'channel-data)     handle-channel-data)
+  (set! (ssh-handler ssh 'channel-eof)      handle-channel-eof)
+  (set! (ssh-handler ssh 'channel-close)    handle-channel-close))
 
 (define (payload-parse payload)
-  (cond ((assoc (payload-type payload) *payload-managers*) =>
-         (lambda (pair) ((cadr pair) payload)))
+  (cond ((assoc (payload-type payload) *payload-parsers*) =>
+         (lambda (pair) ((cdr pair) payload)))
         (else (list (payload-type payload) 'unparsed payload))))
 
+(define (handle-parsed-payload ssh parsed)
+  (cond ((ssh-handler ssh (car parsed)) =>
+           (lambda (handler)
+             (apply handler (cons ssh (cdr parsed)))
+             parsed))
+          (else parsed)))
+
+;; TODO: find a good (but shorter) name for parsed-payload
 (define (next-payload ssh)
-  (payload-parse (read-payload ssh)))
+  (let* ((parsed (payload-parse (read-payload ssh))))
+    (handle-parsed-payload ssh parsed)
+    parsed))
 
-(define (handle-payload ssh payload)
-  (let ((type (payload-type payload)))
-    (cond ((assoc type *payload-managers*) =>
-           (lambda (pair)
-             (let* ((parser  (cadr pair))
-                    (handler (caddr pair))
-                    (parsed (parser payload)))
-               (and handler (apply handler (cons ssh (cdr parsed))))
-               parsed)))
-          (else (list type payload)))))
-
-(define (ssh-server-start server-host-key-secret server-host-key-public
+(define (ssh-server-start server-host-key-secret
+                          server-host-key-public
                           handler
                           #!key (port 22022))
   (define ss (tcp-listen port))

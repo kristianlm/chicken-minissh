@@ -10,13 +10,15 @@
 
   (write-payload ssh "\x06\x00\x00\x00\fssh-userauth")
 
-  (read-payload/expect ssh 'userauth-request)
-  (write-payload ssh (wots (write-byte (payload-type->int 'userauth-success))))
+  (unless (equal? 'userauth-request (car (next-payload ssh)))
+    (error "really expecting userauth-request here" ))
+  (write-payload ssh (wots (write-payload-type 'userauth-success)))
+
+  (ssh-setup-channel-handlers! ssh)
 
   (print "starting channel loop")
   (let loop ()
-    (let* ((payload (read-payload ssh))
-           (parsed (handle-payload ssh payload)))
+    (let* ((parsed (next-payload ssh)))
       (match parsed
         (('channel-data cid str)
          (ssh-channel-write (ssh-channel ssh cid) (string-upcase str)))
@@ -32,5 +34,4 @@
        (conc "iWtDZXdl/UeN3q7sq2QWN2Ymv3ggveJRBvn1a+rMC5oz"
              "ziKH/lXlMW8jcNK4xeJLBrkSpSoLtxgz8nT24inEtQ=="))
       (base64-decode "M84ih/5V5TFvI3DSuMXiSwa5EqUqC7cYM/J09uIpxLU=")
-      (lambda (ssh) (handle-client ssh))
-      port: 2222))))
+      (lambda (ssh) (handle-client ssh))))))
