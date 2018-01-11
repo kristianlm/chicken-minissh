@@ -123,8 +123,8 @@
                   (write-byte (payload-type->int 'channel-open-confirmation))
                   (display channelid)          ;; sender cid
                   (display "\x00\x00\x00\x01") ;; my cid
-                  (display (u2s #x200000))
-                  (display (u2s #x008000))))
+                  (display (u2s #x000010)) ;; window size
+                  (display (u2s #x008000)))) ;; max packet size
 
   (read-payload/expect ssh 'channel-request)
 
