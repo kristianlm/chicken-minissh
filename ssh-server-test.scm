@@ -26,33 +26,6 @@
 
 ;; (wots (write-signpk "x123456789 123456789 12345678912"))
 
-;; produce hash H according to https://tools.ietf.org/html/rfc4253#section-8
-(define (exchange-hash hellorecv hellosend
-                     kexrecv kexsend
-                     server-sign-pk
-                     clientpk serverpk
-                     sharedsecret)
-
-  ;; (print "hellorecv: " (string->blob hellorecv))
-  ;; (print "hellosend: " (string->blob hellosend))
-  ;; (print "kexrecv: " (string->blob kexrecv))
-  ;; (print "kexsend: " (string->blob kexsend))
-  ;; (print "server-sign-pk: " (string->blob server-sign-pk))
-  ;; (print "clientpk: " (string->blob clientpk))
-  ;; (print "serverpk: " (string->blob serverpk))
-  ;; (print "sharedsecret: " (string->blob sharedsecret))
-
-  (let ((content (wots (write-buflen hellorecv)
-                   (write-buflen hellosend)
-                   (write-buflen kexrecv)
-                   (write-buflen kexsend)
-                   (write-signpk server-sign-pk)
-                   (write-buflen clientpk)
-                   (write-buflen serverpk)
-                   (write-mpint/positive sharedsecret))))
-    ;;(print "hashcontent: " (string->blob content))
-    (sha256 content)))
-
 (define (curve25519-dh server-sk client-pk)
   (blob->string (scalarmult (string->blob server-sk)
                             (string->blob client-pk))))

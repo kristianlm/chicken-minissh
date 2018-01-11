@@ -283,6 +283,34 @@
              (payload-type payload) payload))
     payload))
 
+
+;; produce hash H according to https://tools.ietf.org/html/rfc4253#section-8
+(define (exchange-hash hellorecv hellosend
+                     kexrecv kexsend
+                     server-sign-pk
+                     clientpk serverpk
+                     sharedsecret)
+
+  ;; (print "hellorecv: " (string->blob hellorecv))
+  ;; (print "hellosend: " (string->blob hellosend))
+  ;; (print "kexrecv: " (string->blob kexrecv))
+  ;; (print "kexsend: " (string->blob kexsend))
+  ;; (print "server-sign-pk: " (string->blob server-sign-pk))
+  ;; (print "clientpk: " (string->blob clientpk))
+  ;; (print "serverpk: " (string->blob serverpk))
+  ;; (print "sharedsecret: " (string->blob sharedsecret))
+
+  (let ((content (wots (write-buflen hellorecv)
+                   (write-buflen hellosend)
+                   (write-buflen kexrecv)
+                   (write-buflen kexsend)
+                   (write-signpk server-sign-pk)
+                   (write-buflen clientpk)
+                   (write-buflen serverpk)
+                   (write-mpint/positive sharedsecret))))
+    ;;(print "hashcontent: " (string->blob content))
+    (sha256 content)))
+
 ;; derive a 64 byte key from curve25519 shared secret and exchange
 ;; hash. see https://tools.ietf.org/html/rfc4253#section-7.2
 (define (kex-derive-keys64 c K H session-id)
