@@ -423,7 +423,7 @@
 
 ;; kex/read is an optional string representing the received KEXINIT
 ;; payload (reads next packet if not specified).
-(define (run-kex ssh #!optional kex/read)
+(define (run-kex ssh server-sign-sk server-sign-pk #!optional kex/read)
 
   (unless (and (ssh-hello/read ssh)
                (ssh-hello/write ssh))

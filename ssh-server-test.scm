@@ -1,19 +1,16 @@
 (use srfi-18)
 (include "core.scm")
 
-(define server-sign-pk
-  (base64-decode "M84ih/5V5TFvI3DSuMXiSwa5EqUqC7cYM/J09uIpxLU="))
-(define server-sign-sk
-  (base64-decode (conc "iWtDZXdl/UeN3q7sq2QWN2Ymv3ggveJRBvn1a+rMC5oz"
-                       "ziKH/lXlMW8jcNK4xeJLBrkSpSoLtxgz8nT24inEtQ==")))
-
 (define (handle-client ip op)
 
   (define ssh (make-ssh ip op))
   (eval `(set! ssh ',ssh))
 
   (run-protocol-exchange ssh)
-  (run-kex ssh)
+  (run-kex ssh
+           (base64-decode (conc "iWtDZXdl/UeN3q7sq2QWN2Ymv3ggveJRBvn1a+rMC5oz"
+                                "ziKH/lXlMW8jcNK4xeJLBrkSpSoLtxgz8nT24inEtQ=="))
+           (base64-decode "M84ih/5V5TFvI3DSuMXiSwa5EqUqC7cYM/J09uIpxLU="))
   
   (define packet (read-payload/expect ssh 'service-request))
   (unless (equal? "\x05\x00\x00\x00\fssh-userauth" packet)
