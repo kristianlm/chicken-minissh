@@ -20,11 +20,8 @@
   (define ssh (make-ssh ip op))
   (eval `(set! ssh ',ssh))
 
-  (define hellosend "SSH-2.0-klmssh_0.1 testing123") ;; TODO: randomize
-  (display (conc hellosend "\r\n") op)
+  (run-protocol-exchange ssh)
   
-  (define helloreceive (read-protocol-exchange ip))
-  ;;(print "helloreceive: " (wots (write helloreceive)))
 
   (define kexsend (wots (kx-payload)))
   ;;(print "kexsend: " (wots (write kexsend)))

@@ -2,11 +2,16 @@
 (use chacha)
 
 (define-record-type ssh
-  (%make-ssh ip op sid seqnum/read seqnum/write payload-reader payload-writer)
+  (%make-ssh ip op sid
+             hello/read hello/write
+             seqnum/read    seqnum/write
+             payload-reader payload-writer)
   ssh?
   (ip ssh-ip)
   (op ssh-op)
   (sid ssh-sid %ssh-sid-set!)
+  (hello/read ssh-hello/read %ssh-hello/read-set!)
+  (hello/write ssh-hello/write %ssh-hello/write-set!)
   (seqnum/read  ssh-seqnum/read  %ssh-seqnum/read-set!)
   (seqnum/write ssh-seqnum/write %ssh-seqnum/write-set!)
   (payload-reader ssh-payload-reader %ssh-payload-reader-set!)
@@ -16,6 +21,7 @@
   (assert (input-port? ip))
   (assert (output-port? op))
   (%make-ssh ip op
+             #f #f ;; hello
              #f 0 0
              read-payload/none
              write-payload/none))
@@ -59,6 +65,33 @@
       (error "payload-type not found" payload-type)))
 ;; (payload-type->int 'channel-eof)
 
+
+;; ==================== protocol exchange ====================
+
+;; from https://tools.ietf.org/html/rfc4253#section-4.2
+;; The server MAY send other lines of data before sending the version
+;; string.  Each line SHOULD be terminated by a Carriage Return and
+;; Line Feed.  Such lines MUST NOT begin with "SSH-", and SHOULD be
+;; encoded in ISO-10646 UTF-8 [RFC3629] (language is not specified).
+(define (read-protocol-exchange ip)
+  (let loop ((line (read-line ip)))
+    (if (string-prefix? "SSH-" line)
+        line
+        (loop (read-line ip)))))
+
+;; TODO: randomize greeting
+(define (run-protocol-exchange ssh #!optional
+                               (protocol "SSH-2.0")
+                               (version "minissh_0.1")
+                               (comment "testing1234"))
+  (define greeting (conc protocol "-" version " " comment))
+  (display (conc greeting "\r\n") (ssh-op ssh))
+  (%ssh-hello/write-set! ssh greeting)
+  
+  (%ssh-hello/read-set! ssh (read-protocol-exchange (ssh-ip ssh))))
+
+;; ====================
+
 (define (sha256 str)
   (message-digest-string (sha256-primitive) str 'string))
 
@@ -93,17 +126,6 @@
     (string-set! s 2 (integer->char (arithmetic-shift n -8)))
     (string-set! s 3 (integer->char (arithmetic-shift n -0)))
     s))
-
-;; from https://tools.ietf.org/html/rfc4253#section-4.2
-;; The server MAY send other lines of data before sending the version
-;; string.  Each line SHOULD be terminated by a Carriage Return and
-;; Line Feed.  Such lines MUST NOT begin with "SSH-", and SHOULD be
-;; encoded in ISO-10646 UTF-8 [RFC3629] (language is not specified).
-(define (read-protocol-exchange ip)
-  (let loop ((line (read-line ip)))
-    (if (string-prefix? "SSH-" line)
-        line
-        (loop (read-line ip)))))
 
 (define (read-string/check len ip)
   (let ((result (read-string len ip)))
