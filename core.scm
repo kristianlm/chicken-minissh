@@ -599,6 +599,11 @@
   (%ssh-channel-bytes/write-set!
    ch (- (ssh-channel-bytes/write ch) len)))
 
+(define (ssh-channel-close ch)
+  (write-payload (ssh-channel-ssh ch)
+                 (wots (write-payload-type 'channel-close)
+                       (write-u32 (ssh-channel-cid ch)))))
+
 (define *payload-parsers*
   `((disconnect       .  ,parse-disconnect)
     (service-request  .  ,parse-service-request)
