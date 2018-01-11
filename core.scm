@@ -5,7 +5,8 @@
   (%make-ssh ip op sid
              hello/read hello/write
              seqnum/read    seqnum/write
-             payload-reader payload-writer)
+             payload-reader payload-writer
+             channels)
   ssh?
   (ip ssh-ip)
   (op ssh-op)
@@ -15,7 +16,9 @@
   (seqnum/read  ssh-seqnum/read  %ssh-seqnum/read-set!)
   (seqnum/write ssh-seqnum/write %ssh-seqnum/write-set!)
   (payload-reader ssh-payload-reader %ssh-payload-reader-set!)
-  (payload-writer ssh-payload-writer %ssh-payload-writer-set!))
+  (payload-writer ssh-payload-writer %ssh-payload-writer-set!)
+  (channels ssh-channels))
+
 
 (define (make-ssh ip op)
   (assert (input-port? ip))
@@ -24,7 +27,34 @@
              #f #f ;; hello
              #f 0 0
              read-payload/none
-             write-payload/none))
+             write-payload/none
+             (make-hash-table)))
+
+(define ssh-channel
+  (getter-with-setter
+   (lambda (ssh cid) (hash-table-ref (ssh-channels ssh) cid))
+   (lambda (ssh cid val) (hash-table-set! (ssh-channels ssh) cid val))))
+
+(define-record-type ssh-channel
+  (%make-ssh-channel ssh type
+                     cid ;; same id for sender and receiver
+                     bytes/read bytes/write) ;; window sizes
+  ;; TODO: field for max packet size
+  ;; TODO: field for exit-status, exec command?
+  ssh-channel?
+  (ssh  ssh-channel-ssh)
+  (type ssh-channel-type)
+  (cid  ssh-channel-cid)
+  (bytes/read  ssh-channel-bytes/read  %ssh-channel-bytes/read-set!)
+  (bytes/write ssh-channel-bytes/write %ssh-channel-bytes/write-set!))
+
+(define (make-ssh-channel ssh type cid bytes/read bytes/write)
+  (assert (ssh? ssh))
+  (assert (string? type))
+  (assert (integer? cid))
+  (assert (integer? bytes/read))
+  (assert (integer? bytes/write))
+  (%make-ssh-channel ssh type cid bytes/read bytes/write))
 
 (define *payload-types*
   `( ;; from https://tools.ietf.org/html/rfc4253#section-12
@@ -140,6 +170,9 @@
 (define (write-u32 n #!optional (op (current-output-port)))
   (display (u2s n) op))
 
+(define (write-payload-type type #!optional (op (current-output-port)))
+  (write-byte (payload-type->int type) op))
+
 ;; prefix "bignum" with 00 if first byte is negative (in two's
 ;; complement). mpints are described in https://tools.ietf.org/html/rfc4251#section-5
 (define (string->mpint str)
@@ -251,6 +284,12 @@
 
 (define (read-u32 #!optional (ip (current-input-port)))
   (s2u (read-string/check 4 ip)))
+
+(define (read-payload-type #!key expect (ip (current-input-port)))
+  (let ((result (payload-type (read-string/check 1 ip))))
+    (unless (eq? (or expect result) result)
+      (error "payload-type mismatch" result expect))
+    result))
 
 (define (read-payload/none ssh)
   (packet-payload (read-buflen (ssh-ip ssh))))
@@ -494,33 +533,108 @@
   (%ssh-payload-reader-set! ssh (make-payload-reader/chacha20 key-c2s-main key-c2s-header))
   (%ssh-payload-writer-set! ssh (make-payload-writer/chacha20 key-s2c-main key-s2c-header)))
 
-(define (channel-open-parse payload)
-  (wifs
-   payload
-   (let ((payload-type (read-byte)))
-     (unless (eq? payload-type (payload-type->int 'channel-open))
-       (error (conc "expected " payload-type ", got ") payload-type)))
-   (let ((channel-type (read-buflen))
-         (sender-channel (read-u32))
-         (window-size (read-u32))
-         (max-packet-size (read-u32)))
-     (values channel-type sender-channel window-size max-packet-size))))
+(include "parsing.scm")
 
-(define (channel-open-handle payload)
-  (receive (type cid ws max)
-      (channel-open-parse payload)
+(define (handle-channel-open ssh type cid ws-remote max)
 
-    (set! (ssh-channel ssh cid)
-          (make-ssh-channel ssh cid
-                            0 0   ;; current byte counts
-                            100   ;; my window size
-                            ws)))) ;; their window size
+  (define ws-local #x000010)
+
+  (write-payload ssh
+                 (wots
+                  (write-byte (payload-type->int 'channel-open-confirmation))
+                  (write-u32 cid)            ;; client cid
+                  (write-u32 cid)            ;; server cid (same)
+                  (display (u2s ws-local))   ;; window size
+                  (display (u2s #x008000)))) ;; max packet size
+
+  (set! (ssh-channel ssh cid)
+        (make-ssh-channel ssh type cid
+                          ws-local
+                          ws-remote)))
+
+(define (handle-channel-close ssh cid)
+  (hash-table-delete! (ssh-channels ssh) cid))
+
+(define (handle-channel-data ssh cid str #!optional (increment #x8000))
+
+  (define ch (ssh-channel ssh cid))
+  (%ssh-channel-bytes/read-set!
+   ch (- (ssh-channel-bytes/read ch) (string-length str)))
+  (print "incoming " (ssh-channel-bytes/read ch))
+
+  (when (<= (ssh-channel-bytes/read ch) 0)
+    (%ssh-channel-bytes/read-set!
+     ch (+ (ssh-channel-bytes/read ch) increment))
+    (write-payload
+     ssh
+     (wots (write-payload-type 'channel-window-adjust)
+           (write-u32 cid)
+           (write-u32 increment)))))
+
+(define (handle-channel-eof ssh cid)
+  ;; TODO: mark channel as "closed"?
+  (void))
+
+(define (handle-channel-request ssh cid type reply? rest)
+  ;; TODO: process type somehow ("exec", "shell", "pty")
+  (write-payload ssh
+                 (wots (write-byte (payload-type->int 'channel-success))
+                       (write-u32 cid))))
 
 (define (ssh-channel-write ch str)
   (assert (string? str))
-  (write-payload (ssh-channel-ssh)
+  (define len (string-length str))
+  (when (< (ssh-channel-bytes/write ch) len)
+    (print "TODO: handle wait for window adjust"))
+  (write-payload (ssh-channel-ssh ch)
                  (wots (write-byte (payload-type->int 'channel-data))
                        (write-u32 (ssh-channel-cid ch))
                        (write-buflen str)))
   (%ssh-channel-bytes/write-set!
-   ch (+ (string-length str) (ssh-channel-bytes/write ch))))
+   ch (- (ssh-channel-bytes/write ch) len)))
+
+(define *payload-managers*
+  `((disconnect            ,parse-disconnect      ,#f)
+    (service-request       ,parse-service-request ,#f)
+    (channel-open          ,parse-channel-open    ,handle-channel-open)
+    (channel-request       ,parse-channel-request ,handle-channel-request)
+    (channel-data          ,parse-channel-data    ,handle-channel-data)
+    (channel-eof           ,parse-channel-eof     ,handle-channel-eof)
+    (channel-close         ,parse-channel-close   ,handle-channel-close)))
+
+(define (payload-parse payload)
+  (cond ((assoc (payload-type payload) *payload-managers*) =>
+         (lambda (pair) ((cadr pair) payload)))
+        (else (list (payload-type payload) 'unparsed payload))))
+
+(define (next-payload ssh)
+  (payload-parse (read-payload ssh)))
+
+(define (handle-payload ssh payload)
+  (let ((type (payload-type payload)))
+    (cond ((assoc type *payload-managers*) =>
+           (lambda (pair)
+             (let* ((parser  (cadr pair))
+                    (handler (caddr pair))
+                    (parsed (parser payload)))
+               (and handler (apply handler (cons ssh (cdr parsed))))
+               parsed)))
+          (else (list type payload)))))
+
+(define (ssh-server-start server-host-key-secret server-host-key-public
+                          handler
+                          #!key (port 22022))
+  (define ss (tcp-listen port))
+  (let loop ()
+    (receive (ip op) (tcp-accept ss)
+      (print "incoming: " ip " " op)
+      (thread-start!
+       (lambda ()
+         (define ssh (make-ssh ip op))
+         (run-protocol-exchange ssh)
+         (run-kex ssh
+                  server-host-key-secret
+                  server-host-key-public)
+         (handler ssh))))
+    (loop)))
+
