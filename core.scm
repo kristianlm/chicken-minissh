@@ -15,12 +15,10 @@
 (define (make-ssh ip op)
   (assert (input-port? ip))
   (assert (output-port? op))
-  (let ((ssh (%make-ssh ip op
-                        #f 0 0
-                        read-payload/none
-                        write-payload/none)))
-    (warning "outpit? " (ssh-op ssh) op)
-    ssh))
+  (%make-ssh ip op
+             #f 0 0
+             read-payload/none
+             write-payload/none))
 
 (define *payload-types*
   `( ;; from https://tools.ietf.org/html/rfc4253#section-12
