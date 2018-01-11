@@ -115,6 +115,8 @@
   (display (u2s (string-length packet)) op)
   (display packet op))
 
+(define (write-u32 n #!optional (op (current-output-port)))
+  (display (u2s n) op))
 
 ;; prefix "bignum" with 00 if first byte is negative (in two's
 ;; complement). mpints are described in https://tools.ietf.org/html/rfc4251#section-5
@@ -224,6 +226,9 @@
 (define (read-buflen #!optional (ip (current-input-port)))
   (define packet_length (s2u (read-string/check 4 ip)))
   (read-string/check packet_length ip))
+
+(define (read-u32 #!optional (ip (current-input-port)))
+  (s2u (read-string/check 4 ip)))
 
 (define (read-payload/none ssh)
   (packet-payload (read-buflen (ssh-ip ssh))))
