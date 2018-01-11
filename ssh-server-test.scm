@@ -66,7 +66,7 @@
   (define hellosend "SSH-2.0-klmssh_0.1 testing123") ;; TODO: randomize
   (display (conc hellosend "\r\n") op)
   
-  (define helloreceive (read-line ip)) ;; TODO: read-line until "SSH-" prefix
+  (define helloreceive (read-protocol-exchange ip))
   ;;(print "helloreceive: " (wots (write helloreceive)))
 
   (define kexsend (wots (kx-payload)))

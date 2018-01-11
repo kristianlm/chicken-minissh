@@ -96,6 +96,17 @@
     (string-set! s 3 (integer->char (arithmetic-shift n -0)))
     s))
 
+;; from https://tools.ietf.org/html/rfc4253#section-4.2
+;; The server MAY send other lines of data before sending the version
+;; string.  Each line SHOULD be terminated by a Carriage Return and
+;; Line Feed.  Such lines MUST NOT begin with "SSH-", and SHOULD be
+;; encoded in ISO-10646 UTF-8 [RFC3629] (language is not specified).
+(define (read-protocol-exchange ip)
+  (let loop ((line (read-line ip)))
+    (if (string-prefix? "SSH-" line)
+        line
+        (loop (read-line ip)))))
+
 (define (read-string/check len ip)
   (let ((result (read-string len ip)))
     (unless (= len (string-length result))
