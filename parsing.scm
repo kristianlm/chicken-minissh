@@ -69,6 +69,24 @@
              (modes            (read-buflen))))
            (else (list (read-string #f))))))))
 
+(define (parse-userauth-request payload)
+  (wifs
+   payload
+   (let* ((payload-type (read-payload-type expect: 'userauth-request))
+          (user    (read-buflen))
+          (service (read-buflen))
+          (method  (string->symbol (read-buflen))))
+     `(,payload-type
+       ,user ,service ,method
+       ,@(case method
+           ((none) '())
+           ((publickey)
+            (make-parser/values
+             (false (if (= 0 (read-byte)) #f #t))
+             (algorithm (string->symbol (read-buflen)))
+             (blob (read-buflen))))
+           (else (list (read-string #f))))))))
+
 (define (parse-channel-data payload)
   (wifs
    payload
@@ -99,6 +117,7 @@
 (define *payload-parsers*
   `((disconnect       .  ,parse-disconnect)
     (service-request  .  ,parse-service-request)
+    (userauth-request .  ,parse-userauth-request)
     (channel-open     .  ,parse-channel-open)
     (channel-request  .  ,parse-channel-request)
     (channel-data     .  ,parse-channel-data)
