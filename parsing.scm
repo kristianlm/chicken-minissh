@@ -94,3 +94,13 @@
 ;; (parse-channel-eof "`\x00\x00\x00\x01")
 ;; (parse-channel-close "a\x00\x00\x00\x01")
 ;; (parse-channel-data "^\x00\x00\x00\x01\x00\x00\x00\rawdofihawofh\n")
+
+
+(define *payload-parsers*
+  `((disconnect       .  ,parse-disconnect)
+    (service-request  .  ,parse-service-request)
+    (channel-open     .  ,parse-channel-open)
+    (channel-request  .  ,parse-channel-request)
+    (channel-data     .  ,parse-channel-data)
+    (channel-eof      .  ,parse-channel-eof)
+    (channel-close    .  ,parse-channel-close)))

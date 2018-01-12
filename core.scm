@@ -604,15 +604,6 @@
                  (wots (write-payload-type 'channel-close)
                        (write-u32 (ssh-channel-cid ch)))))
 
-(define *payload-parsers*
-  `((disconnect       .  ,parse-disconnect)
-    (service-request  .  ,parse-service-request)
-    (channel-open     .  ,parse-channel-open)
-    (channel-request  .  ,parse-channel-request)
-    (channel-data     .  ,parse-channel-data)
-    (channel-eof      .  ,parse-channel-eof)
-    (channel-close    .  ,parse-channel-close)))
-
 (define (ssh-setup-channel-handlers! ssh)
   ;; it's probably important to not allow this too early:
   (assert (ssh-hello/write ssh))
