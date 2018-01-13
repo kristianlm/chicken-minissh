@@ -344,7 +344,7 @@
     (with-output-to-port (current-error-port)
       (lambda ()
         (print "==== RECV #" (ssh-seqnum/read ssh)
-               " " (payload-type payload) " "
+               " " (wots (write (payload-parse payload))) " ;; "
                (wots (write (substring/shared
                              payload
                              0 (min 123 (string-length payload))))))))
