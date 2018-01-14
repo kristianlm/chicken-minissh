@@ -181,6 +181,14 @@
 (define (write-payload-type type #!optional (op (current-output-port)))
   (write-byte (payload-type->int type) op))
 
+;; see https://tools.ietf.org/html/rfc4251#section-5
+(define (write-name-list l)
+  ;; TODO: check for any #\, in items
+  (define s (string-join (intersperse l ",") ""))
+  (display "\x00\x00\x00") ;; TODO proper u32
+  (write-byte (string-length s))
+  (display s))
+
 ;; prefix "bignum" with 00 if first byte is negative (in two's
 ;; complement). mpints are described in https://tools.ietf.org/html/rfc4251#section-5
 (define (string->mpint str)
@@ -252,22 +260,16 @@
   (display "\x14")           ;; SSH_MSG_KEXINIT
   (display "0123456789abcdef") ;; TODO: randomize
 
-  (define (named-list l)
-    (define s (string-join (intersperse l ",") ""))
-    (display "\x00\x00\x00") ;; TODO proper u32
-    (write-byte (string-length s))
-    (display s))
-
-  (named-list '("curve25519-sha256@libssh.org")) ;; kex_algorithms
-  (named-list '("ssh-ed25519")) ;; server_host_key_algorithms
-  (named-list '("chacha20-poly1305@openssh.com")) ;; encryption_algorithms_c->s
-  (named-list '("chacha20-poly1305@openssh.com")) ;; encryption_algorithms_s->c
-  (named-list '()) ;; mac_algorithms_client_to_server
-  (named-list '()) ;; mac_algorithms_server_to_client
-  (named-list '("none")) ;; compression_algorithms_client_to_server
-  (named-list '("none")) ;; compression_algorithms_server_to_client
-  (named-list '()) ;; languages_client_to_server
-  (named-list '()) ;; languages_server_to_client
+  (write-name-list '("curve25519-sha256@libssh.org")) ;; kex_algorithms
+  (write-name-list '("ssh-ed25519")) ;; server_host_key_algorithms
+  (write-name-list '("chacha20-poly1305@openssh.com")) ;; encryption_algorithms_c->s
+  (write-name-list '("chacha20-poly1305@openssh.com")) ;; encryption_algorithms_s->c
+  (write-name-list '()) ;; mac_algorithms_client_to_server
+  (write-name-list '()) ;; mac_algorithms_server_to_client
+  (write-name-list '("none")) ;; compression_algorithms_client_to_server
+  (write-name-list '("none")) ;; compression_algorithms_server_to_client
+  (write-name-list '()) ;; languages_client_to_server
+  (write-name-list '()) ;; languages_server_to_client
   (display "\x00") ;; first_kex_packet_follows
   (display "\x00\x00\x00\x00") ;; reserved00
   )
