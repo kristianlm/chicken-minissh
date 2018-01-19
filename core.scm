@@ -622,7 +622,7 @@
   ;; it's probably important to not allow this too early:
   (assert (ssh-hello/write ssh))
   (assert (ssh-hello/read ssh))
-  ;; TODO: check for user too
+  (assert (ssh-user ssh))
   (set! (ssh-handler ssh 'channel-open)     handle-channel-open)
   (set! (ssh-handler ssh 'channel-request)  handle-channel-request)
   (set! (ssh-handler ssh 'channel-data)     handle-channel-data)
