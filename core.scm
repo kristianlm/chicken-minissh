@@ -1,6 +1,5 @@
 (use tcp srfi-18 srfi-69 srfi-13 ports
      (only tweetnacl asymmetric-box-secretkeybytes current-entropy-port
-           scalarmult ;; TODO
            asymmetric-sign asymmetric-verify
            symmetric-verify symmetric-sign)
      (only sha2 sha256-primitive)
@@ -9,6 +8,8 @@
      (only chacha20 chacha-iv! chacha-encrypt! make-chacha)
      (only data-structures conc intersperse rassoc string-split alist-ref)
      (only extras read-string read-line read-byte write-byte))
+
+(include "scalarmult.scm") ;; <-- get scalarmult* from tweetnacl?
 
 (define-record-type ssh
   (%make-ssh ip op sid user
@@ -378,13 +379,13 @@
 
   (let* ((sk (read-string asymmetric-box-secretkeybytes
                           (current-entropy-port)))
-         (pk (blob->string (scalarmult (string->blob sk)
+         (pk (blob->string (scalarmult* (string->blob sk)
                                        scalarmult-base))))
     (values sk pk)))
 
 (define (curve25519-dh server-sk client-pk)
-  (blob->string (scalarmult (string->blob server-sk)
-                            (string->blob client-pk))))
+  (blob->string (scalarmult* (string->blob server-sk)
+                             (string->blob client-pk))))
 
 (define (write-signpk pk)
   (define type "ssh-ed25519")
