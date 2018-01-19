@@ -532,6 +532,7 @@
   (define (kex-derive-key id)
     (string->blob (kex-derive-keys64 id sharedsecret hash (ssh-sid ssh))))
 
+  ;; see https://tools.ietf.org/html/rfc4253#section-7.2
   ;;(print "derived key A" (kex-derive-key "A"))
   ;;(print "derived key B" (kex-derive-key "B"))
   (define key-c2s (kex-derive-key "C"))
