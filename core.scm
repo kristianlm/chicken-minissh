@@ -270,7 +270,7 @@
 
 (define (kx-payload)
   (display "\x14")           ;; SSH_MSG_KEXINIT
-  (display "0123456789abcdef") ;; TODO: randomize
+  (display (read-string 16 (current-entropy-port)))
 
   (write-name-list '("curve25519-sha256@libssh.org")) ;; kex_algorithms
   (write-name-list '("ssh-ed25519")) ;; server_host_key_algorithms
