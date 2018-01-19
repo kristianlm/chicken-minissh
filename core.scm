@@ -12,7 +12,9 @@
 (include "scalarmult.scm") ;; <-- get scalarmult* from tweetnacl?
 
 (define-record-type ssh
-  (%make-ssh ip op sid user
+  (%make-ssh ip op
+             hostkey-pk hostkey-signer ;; string and procedure
+             sid user
              hello/read hello/write
              seqnum/read    seqnum/write
              payload-reader payload-writer
@@ -21,6 +23,8 @@
   ssh?
   (ip ssh-ip)
   (op ssh-op)
+  (hostkey-pk     ssh-hostkey-pk     %ssh-hostkey-pk-set!)
+  (hostkey-signer ssh-hostkey-signer %ssh-hostkey-signer-set!)
   (sid ssh-sid %ssh-sid-set!)
   (user ssh-user %ssh-user-set!)
   (hello/read ssh-hello/read %ssh-hello/read-set!)
@@ -32,10 +36,11 @@
   (handlers ssh-handlers)
   (channels ssh-channels))
 
-(define (make-ssh ip op)
+(define (make-ssh ip op hostkey-pk signer)
   (assert (input-port? ip))
   (assert (output-port? op))
   (%make-ssh ip op
+             hostkey-pk signer
              #f #f ;; sid user
              #f #f ;; hellos
              0 0   ;; sequence numbers
@@ -454,7 +459,7 @@
 
 ;; kex/read is an optional string representing the received KEXINIT
 ;; payload (reads next packet if not specified).
-(define (run-kex ssh server-sign-sk server-sign-pk #!optional kex/read)
+(define (run-kex ssh #!optional kex/read)
 
   (unless (and (ssh-hello/read ssh)
                (ssh-hello/write ssh))
@@ -483,7 +488,7 @@
     (exchange-hash (ssh-hello/read ssh)
                    (ssh-hello/write ssh)
                    kex/read kex/write
-                   server-sign-pk
+                   (ssh-hostkey-pk ssh)
                    clientpk serverpk
                    sharedsecret))
 
@@ -491,11 +496,11 @@
   (unless (ssh-sid ssh)
     (%ssh-sid-set! ssh hash))
 
-  (define signature (substring ((asymmetric-sign (string->blob server-sign-sk)) hash) 0 64))
+  (define signature (substring ((ssh-hostkey-signer ssh) hash) 0 64))
 
   (write-payload ssh
                  (wots (write-payload-type 'kexdh-reply)
-                       (write-signpk server-sign-pk)
+                       (write-signpk (ssh-hostkey-pk ssh))
                        (write-buflen serverpk)
                        (write-signpk signature)))
 
@@ -628,11 +633,12 @@
       (print "incoming: " ip " " op)
       (thread-start!
        (lambda ()
-         (define ssh (make-ssh ip op))
+         (define ssh
+           (make-ssh ip op
+                     server-host-key-public
+                     (asymmetric-sign (string->blob server-host-key-secret))))
          (run-protocol-exchange ssh)
-         (run-kex ssh
-                  server-host-key-secret
-                  server-host-key-public)
+         (run-kex ssh)
          (handler ssh))))
     (loop)))
 
