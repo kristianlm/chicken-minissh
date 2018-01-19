@@ -327,7 +327,8 @@
   
   read-payload/chacha20)
 
-(define (read-payload ssh)
+;; like read-payload, but without kexinit handler
+(define (read-payload* ssh)
 
   (let ((payload ((ssh-payload-reader ssh) ssh)))
     (with-output-to-port (current-error-port)
@@ -339,6 +340,16 @@
                              0 (min 256 (string-length payload))))))))
     (%ssh-seqnum/read-set! ssh (+ 1 (ssh-seqnum/read ssh)))
     payload))
+
+;; read the next packet from ssh and extract its payload
+(define (read-payload ssh)
+  (let ((payload (read-payload* ssh)))
+    (if (eq? 'kexinit (payload-type payload))
+        (begin
+          (print "============ RERUNNING KEXINITT ===============")
+          (run-kex ssh payload)
+          (read-payload ssh))
+        payload)))
 
 (define (read-payload/expect ssh expected-payload-type)
   (let ((payload (read-payload ssh)))
@@ -468,10 +479,10 @@
   (define kex/write (wots (kx-payload)))
   (write-payload ssh kex/write)
 
-  (print "EXPETCING KEX READ")
   (unless kex/read
-    (set! kex/read (read-payload/expect ssh 'kexinit)))
-  (print "GOT IT")
+    (set! kex/read (read-payload* ssh))
+    (unless (eq? 'kexinit (payload-type kex/read))
+      (error "kex fault: expected kexinit, got " (wots (write (payload-parse kex/read))))))
 
   (define kexdh-init (read-payload/expect ssh 'kexdh-init))
   (define clientpk (wifs kexdh-init
@@ -525,8 +536,6 @@
 
   (define key-s2c-main   (string->blob (substring (blob->string key-s2c) 0 32)))
   (define key-s2c-header (string->blob (substring (blob->string key-s2c) 32 64)))
-
-  ;; TODO: add a handler for rekeying here
 
   (%ssh-payload-reader-set! ssh (make-payload-reader/chacha20 key-c2s-main key-c2s-header))
   (%ssh-payload-writer-set! ssh (make-payload-writer/chacha20 key-s2c-main key-s2c-header)))
