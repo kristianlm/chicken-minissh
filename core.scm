@@ -155,11 +155,6 @@
     ((_ str body ...)
      (with-input-from-string str (lambda () body ...)))))
 
-(define-syntax wifp
-  (syntax-rules ()
-    ((_ port body ...)
-     (with-input-from-port port (lambda () body ...)))))
-
 (define (tostr o)
   (with-output-to-string
     (lambda () (write o))))
