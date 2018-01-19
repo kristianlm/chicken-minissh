@@ -115,31 +115,6 @@
         (else (error "payload-type not found" payload-type))))
 ;; (payload-type->int 'channel-eof)
 
-
-;; ==================== protocol exchange ====================
-
-;; from https://tools.ietf.org/html/rfc4253#section-4.2
-;; The server MAY send other lines of data before sending the version
-;; string.  Each line SHOULD be terminated by a Carriage Return and
-;; Line Feed.  Such lines MUST NOT begin with "SSH-", and SHOULD be
-;; encoded in ISO-10646 UTF-8 [RFC3629] (language is not specified).
-(define (read-protocol-exchange ip)
-  (let loop ((line (read-line ip)))
-    (if (string-prefix? "SSH-" line)
-        line
-        (loop (read-line ip)))))
-
-;; TODO: randomize greeting
-(define (run-protocol-exchange ssh #!optional
-                               (protocol "SSH-2.0")
-                               (version "chicken-ssh_0.1")
-                               (comment (wots (display (string->blob (read-string 16 (current-entropy-port)))))))
-  (define greeting (conc protocol "-" version " " comment))
-  (display (conc greeting "\r\n") (ssh-op ssh))
-  (%ssh-hello/write-set! ssh greeting)
-  
-  (%ssh-hello/read-set! ssh (read-protocol-exchange (ssh-ip ssh))))
-
 ;; ====================
 
 (define (sha256 str)
@@ -660,6 +635,32 @@
                   server-host-key-public)
          (handler ssh))))
     (loop)))
+
+
+;; ==================== protocol exchange ====================
+
+;; from https://tools.ietf.org/html/rfc4253#section-4.2
+;; The server MAY send other lines of data before sending the version
+;; string.  Each line SHOULD be terminated by a Carriage Return and
+;; Line Feed.  Such lines MUST NOT begin with "SSH-", and SHOULD be
+;; encoded in ISO-10646 UTF-8 [RFC3629] (language is not specified).
+(define (read-protocol-exchange ip)
+  (let loop ((line (read-line ip)))
+    (if (string-prefix? "SSH-" line)
+        line
+        (loop (read-line ip)))))
+
+;; TODO: randomize greeting
+(define (run-protocol-exchange ssh #!optional
+                               (protocol "SSH-2.0")
+                               (version "chicken-ssh_0.1")
+                               (comment (wots (display (string->blob (read-string 16 (current-entropy-port)))))))
+  (define greeting (conc protocol "-" version " " comment))
+  (display (conc greeting "\r\n") (ssh-op ssh))
+  (%ssh-hello/write-set! ssh greeting)
+
+  (%ssh-hello/read-set! ssh (read-protocol-exchange (ssh-ip ssh))))
+
 
 (define (unparse-userauth-banner msg #!optional (language ""))
   (wots (write-payload-type 'userauth-banner)
