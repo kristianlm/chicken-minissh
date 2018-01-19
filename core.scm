@@ -133,7 +133,7 @@
 (define (run-protocol-exchange ssh #!optional
                                (protocol "SSH-2.0")
                                (version "minissh_0.1")
-                               (comment "testing1234"))
+                               (comment (wots (display (string->blob (read-string 16 (current-entropy-port)))))))
   (define greeting (conc protocol "-" version " " comment))
   (display (conc greeting "\r\n") (ssh-op ssh))
   (%ssh-hello/write-set! ssh greeting)
