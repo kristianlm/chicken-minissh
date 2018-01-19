@@ -524,13 +524,13 @@
   (define signature (substring ((asymmetric-sign (string->blob server-sign-sk)) hash) 0 64))
 
   (write-payload ssh
-                 (wots (write-byte (payload-type->int 'kexdh-reply))
+                 (wots (write-payload-type 'kexdh-reply)
                        (write-signpk server-sign-pk)
                        (write-buflen serverpk)
                        (write-signpk signature)))
 
   (write-payload ssh
-                 (wots (write-byte (payload-type->int 'newkeys))))
+                 (wots (write-payload-type 'newkeys)))
 
   (read-payload/expect ssh 'newkeys)
 
@@ -563,7 +563,7 @@
 
   (write-payload ssh
                  (wots
-                  (write-byte (payload-type->int 'channel-open-confirmation))
+                  (write-payload-type 'channel-open-confirmation)
                   (write-u32 cid)            ;; client cid
                   (write-u32 cid)            ;; server cid (same)
                   (display (u2s ws-local))   ;; window size
@@ -598,7 +598,7 @@
 
 (define (handle-channel-request ssh cid type want-reply? . rest)
   (write-payload ssh
-                 (wots (write-byte (payload-type->int 'channel-success))
+                 (wots (write-payload-type 'channel-success)
                        (write-u32 cid))))
 
 (define (ssh-channel-write ch str)
@@ -607,7 +607,7 @@
   (when (< (ssh-channel-bytes/write ch) len)
     (print "TODO: handle wait for window adjust"))
   (write-payload (ssh-channel-ssh ch)
-                 (wots (write-byte (payload-type->int 'channel-data))
+                 (wots (write-payload-type 'channel-data)
                        (write-u32 (ssh-channel-cid ch))
                        (write-buflen str)))
   (%ssh-channel-bytes/write-set!
