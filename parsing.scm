@@ -81,10 +81,15 @@
        ,@(case method
            ((none) '())
            ((publickey)
-            (make-parser/values
-             (false (if (= 0 (read-byte)) #f #t))
-             (algorithm (string->symbol (read-buflen)))
-             (blob (read-buflen))))
+            (let ((signature? (if (= 0 (read-byte)) #f #t)))
+              `(,signature?
+                ,@(make-parser/values
+                   (algorithm (string->symbol (read-buflen)))
+                   (blob (read-buflen)))
+                ,@(if signature?
+                      (make-parser/values
+                       (signature (read-buflen)))
+                      '()))))
            ((password)
             (let ((changereq? (if (= 0 (read-byte)) #f #t)))
               `(,changereq?

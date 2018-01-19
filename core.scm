@@ -2,7 +2,7 @@
 (use chacha)
 
 (define-record-type ssh
-  (%make-ssh ip op sid
+  (%make-ssh ip op sid user
              hello/read hello/write
              seqnum/read    seqnum/write
              payload-reader payload-writer
@@ -12,6 +12,7 @@
   (ip ssh-ip)
   (op ssh-op)
   (sid ssh-sid %ssh-sid-set!)
+  (user ssh-user %ssh-user-set!)
   (hello/read ssh-hello/read %ssh-hello/read-set!)
   (hello/write ssh-hello/write %ssh-hello/write-set!)
   (seqnum/read  ssh-seqnum/read  %ssh-seqnum/read-set!)
@@ -21,13 +22,13 @@
   (handlers ssh-handlers)
   (channels ssh-channels))
 
-
 (define (make-ssh ip op)
   (assert (input-port? ip))
   (assert (output-port? op))
   (%make-ssh ip op
-             #f #f ;; hello
-             #f 0 0
+             #f #f ;; sid user
+             #f #f ;; hellos
+             0 0   ;; sequence numbers
              read-payload/none
              write-payload/none
              (make-hash-table)
@@ -82,6 +83,7 @@
     (userauth-failure          . 51)
     (userauth-success          . 52)
     (userauth-banner           . 53)
+    (userauth-pk-ok            . 60)
     ;; from https://tools.ietf.org/html/rfc4254#section-9
     (global-request            . 80)
     (request-success           . 81)
@@ -658,9 +660,51 @@
         (write-buflen msg)
         (write-buflen language)))
 
-;; ==================== userauth-password ====================
+(define (write-banner ssh msg #!optional (language ""))
+  (when (ssh-user ssh)
+    (error "cannot write banner message after authentication is complete"))
+  (write-payload ssh (unparse-userauth-banner msg language)))
 
-(define (run-userauth-password ssh proc_un_pw)
+;; ==================== userauth ====================
+
+(define (pk->pkblob pk)
+  (wifs pk
+        (assert (equal? "ssh-ed25519" (read-buflen)))
+        (read-buflen)))
+
+(define (sign->signblob sign)
+  (wifs sign
+        (assert (equal? "ssh-ed25519" (read-buflen)))
+        (read-buflen)))
+
+(define (userauth-publickey-signature-blob ssh user pk)
+  (wots
+   (write-buflen (ssh-sid ssh)) ;; session identifier
+   (write-payload-type 'userauth-request)
+   (write-buflen user)
+   (write-buflen "ssh-connection") ;; service name
+   (write-buflen "publickey")
+   (write-byte 1)
+   (write-buflen "ssh-ed25519")
+   (write-buflen pk)))
+
+(define (userauth-publickey-verify ssh user pk signature)
+  (define signbuff (userauth-publickey-signature-blob ssh user pk))
+  ((asymmetric-verify (string->blob (pk->pkblob pk)))
+   (conc (sign->signblob signature) signbuff)))
+
+;; publickey must return true if a (user pk) login would be ok (can be called multiple times)
+;; password must return true if (user password) loging would be ok
+;; banner gets called after successful authenticaion, but before sending 'userauth-success
+(define (run-userauth ssh #!key publickey password banner)
+
+  (define (fail! #!optional partial?)
+    (define auths
+      (append (if publickey '("publickey") '())
+              (if password  '("password")  '())))
+    (write-payload ssh (wots (write-payload-type 'userauth-failure)
+                             (write-name-list auths)
+                             (write-byte (if partial? 1 0)))))
   (let loop ()
 
     (match (next-payload ssh)
@@ -670,30 +714,50 @@
                                 (write-buflen "ssh-userauth")))
        (loop))
 
-      (('userauth-request user "ssh-connection" 'password #f password)
-       (cond ((proc_un_pw user password)
+      ;; client asks if pk would be ok (since the actual signing is expensive)
+      (('userauth-request user "ssh-connection" 'publickey #f 'ssh-ed25519 pk)
+       (cond ((and publickey (publickey user 'ssh-ed25519 pk #f))
+              ;; tell client pk will be accepted if upcoming signature verifies
+              (write-payload ssh (wots (write-payload-type 'userauth-pk-ok)
+                                       (write-buflen "ssh-ed25519")
+                                       (write-buflen pk)))
+              (loop))
+             (else
+              (fail!)
+              (loop))))
+      ;; login with pk and signature
+      (('userauth-request user "ssh-connection" 'publickey #t 'ssh-ed25519 pk sign)
+       (cond ((and publickey
+                   (userauth-publickey-verify ssh user pk sign)
+                   (publickey user 'ssh-ed25519 pk #t))
+              (if banner (banner user))
+              (%ssh-user-set! ssh user)
               (write-payload ssh (wots (write-payload-type 'userauth-success))))
              ;; success, no loop ^
              (else
-              (write-payload ssh (wots (write-payload-type 'userauth-failure)
-                                       (write-name-list '("password"))
-                                       (write-byte 0)))
+              (write-payload ssh
+                             (unparse-userauth-banner
+                              (conc "signature verification failed. this is most likely a bug in this egg.\n")))
+              (fail!)
               (loop))))
-
-      ;;                                          ,-- usually none or publickey
+      ;; password login
+      (('userauth-request user "ssh-connection" 'password #f plaintext-password)
+       (cond ((and password (password user plaintext-password))
+              (if banner (banner user))
+              (%ssh-user-set! ssh user)
+              (write-payload ssh (wots (write-payload-type 'userauth-success))))
+             ;; success, no loop ^
+             (else
+              (fail!)
+              (loop))))
+      ;; invalid log                             ,-- eg. 'none
       (('userauth-request user "ssh-connection" type . whatever)
-       (write-payload ssh
-                      (unparse-userauth-banner (conc "unknown login type " type "\n")))
-       (write-payload ssh (wots (write-payload-type 'userauth-failure)
-                                (write-name-list '("password"))
-                                (write-byte 0)))
+       (fail!)
        (loop))
 
       (otherwise
        (write-payload ssh
                       (unparse-userauth-banner
                        (conc "unexpected packet " (wots (write otherwise)))))
-       (write-payload ssh (wots (write-payload-type 'userauth-failure)
-                                (write-name-list '("password"))
-                                (write-byte 0)))
+       (fail!)
        (loop)))))

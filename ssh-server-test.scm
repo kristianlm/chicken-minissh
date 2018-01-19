@@ -5,17 +5,24 @@
   (eval `(set! ssh ',ssh)) ;; for debuggin
 
   ;; authentication stage
-  (run-userauth-password
+  (run-userauth
    ssh
-   (lambda (un pw)
-     (write-payload ssh
-                    (unparse-userauth-banner
-                     (conc "checking password for " un "\n")))
-     (and (equal? un "klm")
-          (equal? pw "123"))))
+   publickey:
+   (lambda (user type pk signed?) ;; type is always ssh-ed25519 for now
+     ;; the base64 part of ~/.ssh/id_ed25519.pub # `ssh-keygen -t ed25519` to make one
+     (equal? (base64-decode "AAAAC3NzaC1lZDI1NTE5AAAAIIfCLvPNQ7EwQpwvMNNkM4JX7iyKFSrkEW0vrjwWU63I")
+             pk))
+   password:
+   (lambda (user pw)
+     (and (equal? user "guest") ;; this is a bad idea
+          (equal? pw "guest")))
+   banner:
+   (lambda (user)
+     (write-banner ssh (conc "Welcome, " user "\n"))))
 
   (ssh-setup-channel-handlers! ssh)
 
+  (assert (ssh-user ssh)) ;; this is a good idea
   (print "starting channel loop")
   (let loop ()
     (let* ((parsed (next-payload ssh)))

@@ -33,7 +33,6 @@ You have to do this youself.
 - make a ssh client too
 - transport: implement rekeying
 - transport: allow querying current encryption level
-- userauth: API for publickey
 - channels: respect window limits
 - channels: turn into input/output ports?
 - channels: pty handling?
