@@ -1,5 +1,14 @@
-(use tcp base64 tweetnacl sha2 message-digest)
-(use chacha)
+(use tcp srfi-18 srfi-69 srfi-13 ports
+     (only tweetnacl asymmetric-box-secretkeybytes current-entropy-port
+           scalarmult ;; TODO
+           asymmetric-sign asymmetric-verify
+           symmetric-verify symmetric-sign)
+     (only sha2 sha256-primitive)
+     (only message-digest message-digest-string)
+     (only matchable match)
+     (only chacha20 chacha-iv! chacha-encrypt! make-chacha)
+     (only data-structures conc intersperse rassoc string-split alist-ref)
+     (only extras read-string read-line read-byte write-byte))
 
 (define-record-type ssh
   (%make-ssh ip op sid user

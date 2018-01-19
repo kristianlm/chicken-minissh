@@ -1,5 +1,6 @@
-(use srfi-18 matchable)
-(include "core.scm")
+(use srfi-18 matchable ssh)
+
+;;(include "core.scm")
 
 (define (handle-client ssh)
   (eval `(set! ssh ',ssh)) ;; for debuggin
