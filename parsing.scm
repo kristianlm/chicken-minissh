@@ -9,8 +9,8 @@
   (syntax-rules ()
     ((_ ) '())
     ((_ (name exp) rest ...)
-     (let ((name exp))
-       (cons name (make-parser/values rest ...))))))
+     (let ((value exp))
+       (cons value (make-parser/values rest ...))))))
 ;; (make-parser/values (a (begin (print 1) 1)) (b (begin (print 2) 2)))
 
 (define (parse-disconnect payload)
