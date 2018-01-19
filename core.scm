@@ -351,7 +351,7 @@
                " " (wots (write (payload-parse payload))) " ;; "
                (wots (write (substring/shared
                              payload
-                             0 (min 123 (string-length payload))))))))
+                             0 (min 256 (string-length payload))))))))
     (%ssh-seqnum/read-set! ssh (+ 1 (ssh-seqnum/read ssh)))
     payload))
 
