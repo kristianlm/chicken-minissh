@@ -1,4 +1,4 @@
-;; included from core.scm
+;; include me from within ssh.scm
 
 (define (parse/check byte expected)
   (assert (symbol? expected))
