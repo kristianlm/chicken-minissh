@@ -45,7 +45,6 @@
                                   "using the arrow keys is fun.\r\n"
                                   "exit ssh with <RET> ~ .\r\n")))
         (else (print "unhandled " (wots (write parsed))))))
-    (print "RELOOP")
     (loop)))
 
 (define server-thread
