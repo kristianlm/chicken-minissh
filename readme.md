@@ -37,4 +37,3 @@ You have to do this youself.
 - channels: respect window limits
 - channels: turn into input/output ports?
 - channels: pty handling?
-- find out why I'm getting only ~500K/s (openssh->openssh @ 160M/s)

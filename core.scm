@@ -567,7 +567,7 @@
                   (write-u32 cid)            ;; client cid
                   (write-u32 cid)            ;; server cid (same)
                   (display (u2s ws-local))   ;; window size
-                  (display (u2s #x008000)))) ;; max packet size
+                  (display (u2s #x800000)))) ;; max packet size
 
   (set! (ssh-channel ssh cid)
         (make-ssh-channel ssh type cid
@@ -577,7 +577,7 @@
 (define (handle-channel-close ssh cid)
   (hash-table-delete! (ssh-channels ssh) cid))
 
-(define (handle-channel-data ssh cid str #!optional (increment #x8000))
+(define (handle-channel-data ssh cid str #!optional (increment #x10000000))
 
   (define ch (ssh-channel ssh cid))
   (%ssh-channel-bytes/read-set!
