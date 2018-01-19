@@ -34,7 +34,6 @@ You have to do this youself.
 - transport: implement rekeying
 - transport: allow querying current encryption level
 - userauth: API for publickey
-- userauth: API for password
 - channels: respect window limits
 - channels: turn into input/output ports?
 - channels: pty handling?

@@ -653,3 +653,47 @@
          (handler ssh))))
     (loop)))
 
+(define (unparse-userauth-banner msg #!optional (language ""))
+  (wots (write-payload-type 'userauth-banner)
+        (write-buflen msg)
+        (write-buflen language)))
+
+;; ==================== userauth-password ====================
+
+(define (run-userauth-password ssh proc_un_pw)
+  (let loop ()
+
+    (match (next-payload ssh)
+
+      (('service-request "ssh-userauth")
+       (write-payload ssh (wots (write-payload-type 'service-accept)
+                                (write-buflen "ssh-userauth")))
+       (loop))
+
+      (('userauth-request user "ssh-connection" 'password #f password)
+       (cond ((proc_un_pw user password)
+              (write-payload ssh (wots (write-payload-type 'userauth-success))))
+             ;; success, no loop ^
+             (else
+              (write-payload ssh (wots (write-payload-type 'userauth-failure)
+                                       (write-name-list '("password"))
+                                       (write-byte 0)))
+              (loop))))
+
+      ;;                                          ,-- usually none or publickey
+      (('userauth-request user "ssh-connection" type . whatever)
+       (write-payload ssh
+                      (unparse-userauth-banner (conc "unknown login type " type "\n")))
+       (write-payload ssh (wots (write-payload-type 'userauth-failure)
+                                (write-name-list '("password"))
+                                (write-byte 0)))
+       (loop))
+
+      (otherwise
+       (write-payload ssh
+                      (unparse-userauth-banner
+                       (conc "unexpected packet " (wots (write otherwise)))))
+       (write-payload ssh (wots (write-payload-type 'userauth-failure)
+                                (write-name-list '("password"))
+                                (write-byte 0)))
+       (loop)))))

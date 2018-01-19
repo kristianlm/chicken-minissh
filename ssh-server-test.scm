@@ -4,15 +4,15 @@
 (define (handle-client ssh)
   (eval `(set! ssh ',ssh)) ;; for debuggin
 
-  (let ((parsed (next-payload ssh)))
-    (unless (equal? `(service-request "ssh-userauth") parsed)
-      (error "expecting serviece-request \"ssh-userauth\"" parsed)))
-
-  (write-payload ssh "\x06\x00\x00\x00\fssh-userauth")
-
-  (unless (equal? 'userauth-request (car (next-payload ssh)))
-    (error "really expecting userauth-request here" ))
-  (write-payload ssh (wots (write-payload-type 'userauth-success)))
+  ;; authentication stage
+  (run-userauth-password
+   ssh
+   (lambda (un pw)
+     (write-payload ssh
+                    (unparse-userauth-banner
+                     (conc "checking password for " un "\n")))
+     (and (equal? un "klm")
+          (equal? pw "123"))))
 
   (ssh-setup-channel-handlers! ssh)
 

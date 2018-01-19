@@ -85,6 +85,15 @@
              (false (if (= 0 (read-byte)) #f #t))
              (algorithm (string->symbol (read-buflen)))
              (blob (read-buflen))))
+           ((password)
+            (let ((changereq? (if (= 0 (read-byte)) #f #t)))
+              `(,changereq?
+                ,@(if changereq?
+                      (make-parser/values
+                       (password-old (read-buflen))
+                       (password-new (read-buflen)))
+                      (make-parser/values
+                       (password (read-buflen)))))))
            (else (list (read-string #f))))))))
 
 (define (parse-channel-data payload)
