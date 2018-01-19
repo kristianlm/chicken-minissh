@@ -6,7 +6,7 @@
      (only message-digest message-digest-string)
      (only matchable match)
      (only chacha20 chacha-iv! chacha-encrypt! make-chacha)
-     (only data-structures conc intersperse rassoc string-split alist-ref)
+     (only data-structures conc intersperse rassoc string-split)
      (only extras read-string read-line read-byte write-byte))
 
 (include "scalarmult.scm") ;; <-- get scalarmult* from tweetnacl?
@@ -111,8 +111,8 @@
     (channel-failure          . 100)))
 
 (define (payload-type->int payload-type)
-  (or (alist-ref payload-type *payload-types*)
-      (error "payload-type not found" payload-type)))
+  (cond ((assoc payload-type *payload-types*) => cdr)
+        (else (error "payload-type not found" payload-type))))
 ;; (payload-type->int 'channel-eof)
 
 
