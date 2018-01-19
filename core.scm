@@ -363,6 +363,8 @@
   (define scalarmult-base #${09000000 00000000    00000000 00000000
                              00000000 00000000    00000000 00000000})
 
+  ;; this drains /dev/random very quickly it seems.
+  ;; TODO: find a better way.
   (let* ((sk (read-string asymmetric-box-secretkeybytes
                           (current-entropy-port)))
          (pk (blob->string (scalarmult* (string->blob sk)

@@ -36,3 +36,4 @@ You have to do this youself.
 - channels: respect window limits
 - channels: turn into input/output ports?
 - channels: pty handling?
+- find a faster current-entropy-port
