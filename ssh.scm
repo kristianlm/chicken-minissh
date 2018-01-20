@@ -16,7 +16,7 @@
              ip op
              hostkey-pk hostkey-signer ;; string and procedure
              sid user
-             hello/read hello/write
+             hello/server   hello/client
              seqnum/read    seqnum/write
              payload-reader payload-writer
              handlers
@@ -29,8 +29,8 @@
   (hostkey-signer ssh-hostkey-signer %ssh-hostkey-signer-set!)
   (sid ssh-sid %ssh-sid-set!)
   (user ssh-user %ssh-user-set!)
-  (hello/read ssh-hello/read %ssh-hello/read-set!)
-  (hello/write ssh-hello/write %ssh-hello/write-set!)
+  (hello/server ssh-hello/server %ssh-hello/server-set!)
+  (hello/client ssh-hello/client %ssh-hello/client-set!)
   (seqnum/read  ssh-seqnum/read  %ssh-seqnum/read-set!)
   (seqnum/write ssh-seqnum/write %ssh-seqnum/write-set!)
   (payload-reader ssh-payload-reader %ssh-payload-reader-set!)
@@ -480,8 +480,8 @@
 ;; payload (reads next packet if not specified).
 (define (run-kex ssh #!optional kex/read)
 
-  (unless (and (ssh-hello/read ssh)
-               (ssh-hello/write ssh))
+  (unless (and (ssh-hello/server ssh)
+               (ssh-hello/client ssh))
     (error "run-protocol-exchange not run"))
 
   (define kex/write (wots (kx-payload)))
@@ -504,8 +504,8 @@
   (define sharedsecret (string->mpint (curve25519-dh serversk clientpk)))
 
   (define hash
-    (exchange-hash (ssh-hello/read ssh)
-                   (ssh-hello/write ssh)
+    (exchange-hash (ssh-hello/client ssh)
+                   (ssh-hello/server ssh)
                    kex/read kex/write
                    (ssh-hostkey-pk ssh)
                    clientpk serverpk
@@ -613,8 +613,8 @@
 
 (define (ssh-setup-channel-handlers! ssh)
   ;; it's probably important to not allow this too early:
-  (assert (ssh-hello/write ssh))
-  (assert (ssh-hello/read ssh))
+  (assert (ssh-hello/server ssh))
+  (assert (ssh-hello/client ssh))
   (assert (ssh-user ssh))
   (set! (ssh-handler ssh 'channel-open)     handle-channel-open)
   (set! (ssh-handler ssh 'channel-request)  handle-channel-request)
@@ -679,6 +679,16 @@
                                (protocol "SSH-2.0")
                                (version "chicken-ssh_0.1")
                                (comment (wots (display (string->blob (read-string 6 (current-entropy-port)))))))
+
+  (define %ssh-hello/write-set!
+    (if (ssh-server? ssh)
+        %ssh-hello/server-set!
+        %ssh-hello/client-set!))
+  (define %ssh-hello/read-set!
+    (if (ssh-server? ssh)
+        %ssh-hello/client-set!
+        %ssh-hello/server-set!))
+
   (define greeting (conc protocol "-" version " " comment))
   (display (conc greeting "\r\n") (ssh-op ssh))
   (%ssh-hello/write-set! ssh greeting)
