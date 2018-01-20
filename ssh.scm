@@ -526,7 +526,7 @@
   (read-payload/expect ssh 'newkeys)
 
   (define (kex-derive-key id)
-    (string->blob (kex-derive-keys64 id sharedsecret hash (ssh-sid ssh))))
+    (kex-derive-keys64 id sharedsecret hash (ssh-sid ssh)))
 
   ;; see https://tools.ietf.org/html/rfc4253#section-7.2
   ;;(print "derived key A" (kex-derive-key "A"))
@@ -536,11 +536,11 @@
   ;;(print "derived key E" (kex-derive-key "E"))
   ;;(print "derived key F" (kex-derive-key "F"))
 
-  (define key-c2s-main   (string->blob (substring (blob->string key-c2s) 0 32)))
-  (define key-c2s-header (string->blob (substring (blob->string key-c2s) 32 64)))
+  (define key-c2s-main   (string->blob (substring key-c2s 0 32)))
+  (define key-c2s-header (string->blob (substring key-c2s 32 64)))
 
-  (define key-s2c-main   (string->blob (substring (blob->string key-s2c) 0 32)))
-  (define key-s2c-header (string->blob (substring (blob->string key-s2c) 32 64)))
+  (define key-s2c-main   (string->blob (substring key-s2c 0 32)))
+  (define key-s2c-header (string->blob (substring key-s2c 32 64)))
 
   (%ssh-payload-reader-set! ssh (make-payload-reader/chacha20 key-c2s-main key-c2s-header))
   (%ssh-payload-writer-set! ssh (make-payload-writer/chacha20 key-s2c-main key-s2c-header)))
