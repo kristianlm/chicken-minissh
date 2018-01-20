@@ -12,7 +12,8 @@
 (include "scalarmult.scm") ;; <-- get scalarmult* from tweetnacl?
 
 (define-record-type ssh
-  (%make-ssh ip op
+  (%make-ssh server?
+             ip op
              hostkey-pk hostkey-signer ;; string and procedure
              sid user
              hello/read hello/write
@@ -21,6 +22,7 @@
              handlers
              channels)
   ssh?
+  (server? ssh-server? %ssh-server-set!)
   (ip ssh-ip)
   (op ssh-op)
   (hostkey-pk     ssh-hostkey-pk     %ssh-hostkey-pk-set!)
@@ -36,10 +38,14 @@
   (handlers ssh-handlers)
   (channels ssh-channels))
 
-(define (make-ssh ip op hostkey-pk signer)
+(define (make-ssh server? ip op hostkey-pk signer)
   (assert (input-port? ip))
   (assert (output-port? op))
-  (%make-ssh ip op
+  (when server?
+    (assert hostkey-pk)
+    (assert signer))
+  (%make-ssh server?
+             ip op
              hostkey-pk signer
              #f #f ;; sid user
              #f #f ;; hellos
@@ -645,7 +651,8 @@
       (thread-start!
        (lambda ()
          (define ssh
-           (make-ssh ip op
+           (make-ssh #t
+                     ip op
                      server-host-key-public
                      (asymmetric-sign (string->blob server-host-key-secret))))
          (run-protocol-exchange ssh)
