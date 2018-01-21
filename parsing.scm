@@ -2,7 +2,6 @@
 
 ;; for consistency:
 ;; TODO: rename read-buflen -> ssh-read-string
-;; TODO: rename read-u32 -> ssh-read-uint32
 ;; TODO: rename read-bool -> ssh-read-boolean
 
 ;; ==================== parse syntax ====================
@@ -107,7 +106,7 @@
    (signpk      signature)))
 
 (define-parsepair disconnect
-  ((u32    reason-code)
+  ((uint32    reason-code)
    (buflen description)
    (buflen language)))
 
@@ -116,21 +115,21 @@
 
 (define-parsepair channel-open
   ((buflen channel-type)
-   (u32    sender-channel)
-   (u32    window-size)
-   (u32    max-packet-size)))
+   (uint32    sender-channel)
+   (uint32    window-size)
+   (uint32    max-packet-size)))
 
 ;; see https://tools.ietf.org/html/rfc4254#section-6.2
 (define-parsepair channel-request
-  ((u32 cid)
+  ((uint32 cid)
    (bufsym request-type)
    (bool want-reply?)
    (cond [(eq? request-type 'pty-req)
           (buflen term)
-          (u32    width/characters)
-          (u32    height/rows)
-          (u32    width/pixels)
-          (u32    height/pixels)
+          (uint32    width/characters)
+          (uint32    height/rows)
+          (uint32    width/pixels)
+          (uint32    height/pixels)
           (buflen modes)]
 
          ;; TODO: x11-req
@@ -147,10 +146,10 @@
           (buflen name)]
 
          [(eq? request-type 'window-change)
-          (u32    width)
-          (u32    height)
-          (u32    width/pixels)
-          (u32    height/pixels)]
+          (uint32    width)
+          (uint32    height)
+          (uint32    width/pixels)
+          (uint32    height/pixels)]
 
          [(eq? request-type 'xon-xoff)
           (bool      client-can-do)]
@@ -159,7 +158,7 @@
           (bufsym name)] ;; without "SIG" prefix
 
          [(eq? request-type 'exit-status)
-          (u32 status)]
+          (uint32 status)]
 
          [(eq? request-type 'exit-signal)
           ;; valid signal names: ABRT ALRM FPE HUP ILL
@@ -172,7 +171,7 @@
 
          [(eq? request-type 'tcpip-forward)
           (buflen address) ;; (e.g., "0.0.0.0")
-          (u32    port)]
+          (uint32    port)]
 
          [#t ;; OBS: any guarantees that we can read until eof?
           ;;(string anything)
@@ -203,14 +202,14 @@
 
 
 (define-parsepair channel-data
-  ((u32    cid)
+  ((uint32    cid)
    (buflen data)))
 
 (define-parsepair channel-eof
-  ((u32 cid)))
+  ((uint32 cid)))
 
 (define-parsepair channel-close
-  ((u32 cid)))
+  ((uint32 cid)))
 
 ;; (parse-channel-eof "`\x00\x00\x00\x01")
 ;; (parse-channel-close "a\x00\x00\x00\x01")

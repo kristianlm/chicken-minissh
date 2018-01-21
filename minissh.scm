@@ -167,7 +167,7 @@
 (define (write-bufsym packet #!optional (op (current-output-port)))
   (write-buflen (symbol->string packet) op))
 
-(define (write-u32 n #!optional (op (current-output-port)))
+(define (ssh-write-uint32 n #!optional (op (current-output-port)))
   (display (u2s n) op))
 
 (define (write-bool n #!optional (op (current-output-port)))
@@ -180,7 +180,7 @@
 (define (write-name-list l)
   ;; TODO: check for any #\, in items
   (define s (string-join (intersperse l ",") ""))
-  (display "\x00\x00\x00") ;; TODO proper u32
+  (display "\x00\x00\x00") ;; TODO proper uint32
   (write-byte (string-length s))
   (display s))
 
@@ -290,7 +290,7 @@
 (define (read-bufsym #!optional (ip (current-input-port)))
   (string->symbol (read-buflen ip)))
 
-(define (read-u32 #!optional (ip (current-input-port)))
+(define (ssh-read-uint32 #!optional (ip (current-input-port)))
   (s2u (read-string/check 4 ip)))
 
 (define (read-bool #!optional (ip (current-input-port)))
@@ -596,8 +596,8 @@
   (write-payload ssh
                  (wots
                   (write-payload-type 'channel-open-confirmation)
-                  (write-u32 cid)            ;; client cid
-                  (write-u32 cid)            ;; server cid (same)
+                  (ssh-write-uint32 cid)            ;; client cid
+                  (ssh-write-uint32 cid)            ;; server cid (same)
                   (display (u2s ws-local))   ;; window size
                   (display (u2s #x800000)))) ;; max packet size
 
@@ -621,8 +621,8 @@
     (write-payload
      ssh
      (wots (write-payload-type 'channel-window-adjust)
-           (write-u32 cid)
-           (write-u32 increment)))))
+           (ssh-write-uint32 cid)
+           (ssh-write-uint32 increment)))))
 
 (define (handle-channel-eof ssh cid)
   ;; TODO: mark channel as "closed"?
@@ -631,7 +631,7 @@
 (define (handle-channel-request ssh cid type want-reply? . rest)
   (write-payload ssh
                  (wots (write-payload-type 'channel-success)
-                       (write-u32 cid))))
+                       (ssh-write-uint32 cid))))
 
 (define (ssh-channel-write ch str)
   (assert (string? str))
@@ -640,7 +640,7 @@
     (print "TODO: handle wait for window adjust"))
   (write-payload (ssh-channel-ssh ch)
                  (wots (write-payload-type 'channel-data)
-                       (write-u32 (ssh-channel-cid ch))
+                       (ssh-write-uint32 (ssh-channel-cid ch))
                        (write-buflen str)))
   (%ssh-channel-bytes/write-set!
    ch (- (ssh-channel-bytes/write ch) len)))
@@ -648,7 +648,7 @@
 (define (ssh-channel-close ch)
   (write-payload (ssh-channel-ssh ch)
                  (wots (write-payload-type 'channel-close)
-                       (write-u32 (ssh-channel-cid ch)))))
+                       (ssh-write-uint32 (ssh-channel-cid ch)))))
 
 (define (ssh-setup-channel-handlers! ssh)
   ;; it's probably important to not allow this too early:
