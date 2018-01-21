@@ -13,6 +13,15 @@
        (cons value (make-parser/values rest ...))))))
 ;; (make-parser/values (a (begin (print 1) 1)) (b (begin (print 2) 2)))
 
+(define (parse-kexdh-reply payload)
+  (wifs
+   payload
+   (make-parser/values
+    (payload-type (read-payload-type expect: 'kexdh-reply))
+    (ssh-hostkey-pk (read-signpk))
+    (serverpk       (read-buflen))
+    (signature      (read-signpk)))))
+
 (define (parse-disconnect payload)
   (wifs
    payload
@@ -129,7 +138,8 @@
 
 
 (define *payload-parsers*
-  `((disconnect       .  ,parse-disconnect)
+  `((kexdh-reply      .  ,parse-kexdh-reply)
+    (disconnect       .  ,parse-disconnect)
     (service-request  .  ,parse-service-request)
     (userauth-request .  ,parse-userauth-request)
     (channel-open     .  ,parse-channel-open)

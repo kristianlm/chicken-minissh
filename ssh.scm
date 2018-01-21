@@ -288,6 +288,13 @@
 (define (read-u32 #!optional (ip (current-input-port)))
   (s2u (read-string/check 4 ip)))
 
+(define (read-signpk #!optional (ip (current-input-port)))
+  (define type "ssh-ed25519")
+  ;;(assert (= (string-length pk) 32))
+  (wifs (read-buflen)
+        (assert (equal? type (read-buflen)))
+        (read-buflen)))
+
 (define (read-payload-type #!key expect (ip (current-input-port)))
   (let ((result (payload-type (read-string/check 1 ip))))
     (unless (eq? (or expect result) result)
@@ -396,18 +403,22 @@
 ;; produce hash H according to https://tools.ietf.org/html/rfc4253#section-8
 (define (exchange-hash ssh
                        kexrecv kexsend
-                       clientpk serverpk
+                       local-pk remote-pk
+                       host-pk
                        sharedsecret)
 
   (define-values (kex/server kex/client)
       (ssh-server/client ssh kexsend kexrecv))
+
+  (define-values (serverpk clientpk)
+    (ssh-server/client ssh local-pk remote-pk))
 
   (let ((content (wots
                   (write-buflen (ssh-hello/client ssh))
                   (write-buflen (ssh-hello/server ssh))
                   (write-buflen kex/client)
                   (write-buflen kex/server)
-                  (write-signpk (ssh-hostkey-pk ssh))
+                  (write-signpk host-pk)
                   (write-buflen clientpk)
                   (write-buflen serverpk)
                   (write-mpint/positive sharedsecret))))
@@ -491,38 +502,63 @@
     (unless (eq? 'kexinit (payload-type kex/read))
       (error "kex fault: expected kexinit, got " (wots (write (payload-parse kex/read))))))
 
-  (define kexdh-init (read-payload/expect ssh 'kexdh-init))
-  (define clientpk (wifs kexdh-init
-                         (read-byte) ;; ignore payload type
-                         (read-buflen)))
+  (define (xhash! remote-pk local-pk sharedsecret host-pk)
+    (define hash
+      (exchange-hash ssh
+                     kex/read kex/write
+                     local-pk remote-pk
+                     host-pk
+                     sharedsecret))
 
-  ;; generate temporary keypair for session
-  (define-values (serversk serverpk)
-    (make-curve25519-keypair))
+    ;; first exchange has = session id (unchanged, even after rekeying)
+    (unless (ssh-sid ssh)
+      (%ssh-sid-set! ssh hash))
 
-  (define sharedsecret (string->mpint (curve25519-dh serversk clientpk)))
+    hash)
 
-  (define hash
-    (exchange-hash ssh
-                   kex/read kex/write
-                   clientpk serverpk
-                   sharedsecret))
+  (define (init-server)
+    (define kexdh-init (read-payload/expect ssh 'kexdh-init))
+    (define client-pk (wifs kexdh-init
+                            (read-byte) ;; ignore payload type
+                            (read-buflen)))
 
-  ;; first exchange has = session id (unchanged, even after rekeying)
-  (unless (ssh-sid ssh)
-    (%ssh-sid-set! ssh hash))
+    (define-values (server-sk server-pk) (make-curve25519-keypair))
+    (define sharedsecret (string->mpint (curve25519-dh server-sk client-pk)))
+    (define hash (xhash! client-pk server-pk sharedsecret (ssh-hostkey-pk ssh)))
+    (define signature (substring ((ssh-hostkey-signer ssh) hash) 0 64))
 
-  (define signature (substring ((ssh-hostkey-signer ssh) hash) 0 64))
+    (write-payload ssh
+                   (wots (write-payload-type 'kexdh-reply)
+                         (write-signpk (ssh-hostkey-pk ssh))
+                         (write-buflen server-pk)
+                         (write-signpk signature)))
 
-  (write-payload ssh
-                 (wots (write-payload-type 'kexdh-reply)
-                       (write-signpk (ssh-hostkey-pk ssh))
-                       (write-buflen serverpk)
-                       (write-signpk signature)))
+    (values sharedsecret hash))
 
-  (write-payload ssh
-                 (wots (write-payload-type 'newkeys)))
+  (define (init-client)
+    (print "RUNNING CLIENT KEX")
+    (define-values (client-sk client-pk)
+      (make-curve25519-keypair))
 
+    (write-payload ssh
+                   (wots (write-payload-type 'kexdh-init)
+                         (write-buflen client-pk)))
+
+    (define kexdh-reply (payload-parse (read-payload/expect ssh 'kexdh-reply)))
+    (match kexdh-reply
+      (('kexdh-reply host-pk server-pk signature)
+       (define sharedsecret (string->mpint (curve25519-dh client-sk server-pk)))
+       (define hash (xhash! server-pk client-pk sharedsecret host-pk))
+       ;; TODO: verify signature against server-host-key
+       (%ssh-hostkey-pk-set! ssh host-pk)
+       (values sharedsecret hash))))
+
+  (define-values (sharedsecret hash)
+    (if (ssh-server? ssh)
+        (init-server)
+        (init-client)))
+
+  (write-payload ssh (wots (write-payload-type 'newkeys)))
   (read-payload/expect ssh 'newkeys)
 
   (define (kex-derive-key id)
