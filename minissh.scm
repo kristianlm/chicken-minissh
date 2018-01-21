@@ -296,7 +296,7 @@
 (define (ssh-read-boolean #!optional (ip (current-input-port)))
   (if (= 0 (read-byte)) #f #t))
 
-(define (read-signpk #!optional (ip (current-input-port)))
+(define (ssh-read-signpk #!optional (ip (current-input-port)))
   (define type "ssh-ed25519")
   ;;(assert (= (string-length pk) 32))
   (wifs (ssh-read-string)
@@ -396,7 +396,7 @@
   (blob->string (scalarmult* (string->blob server-sk)
                              (string->blob client-pk))))
 
-(define (write-signpk pk)
+(define (ssh-write-signpk pk)
   (define type "ssh-ed25519")
   ;;(assert (= (string-length pk) 32))
   (ssh-write-string
@@ -426,7 +426,7 @@
                   (ssh-write-string (ssh-hello/server ssh))
                   (ssh-write-string kex/client)
                   (ssh-write-string kex/server)
-                  (write-signpk host-pk)
+                  (ssh-write-signpk host-pk)
                   (ssh-write-string clientpk)
                   (ssh-write-string serverpk)
                   (write-mpint/positive sharedsecret))))
@@ -537,9 +537,9 @@
 
     (write-payload ssh
                    (wots (ssh-write-msgno 'kexdh-reply)
-                         (write-signpk (ssh-hostkey-pk ssh))
+                         (ssh-write-signpk (ssh-hostkey-pk ssh))
                          (ssh-write-string server-pk)
-                         (write-signpk signature)))
+                         (ssh-write-signpk signature)))
 
     (values sharedsecret hash))
 
