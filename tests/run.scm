@@ -1,5 +1,19 @@
 (use test minissh base64)
 
+
+(test
+ "simple parse -> unparse"
+ `(channel-data 1 "hei")
+ (parse-channel-data (unparse-channel-data `(channel-data 1 "hei"))))
+
+(test
+ "unparse-channel-data test"
+ "\x5E\x00\x00\x00\x01\x00\x00\x00\x03hei"
+ (unparse-channel-data `(channel-data 1 "hei")))
+
+(unparse-userauth-request
+ '(userauth-request "username" "session" publickey #t ssh***-ed25519 "b" "a"))
+
 (test `(channel-open "session" 1 2 3)
       (parse-channel-open "Z\x00\x00\x00\asession\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x03"))
 
@@ -8,6 +22,7 @@
 
 (test `(userauth-request "tst" "ssh-connection" none)
       (parse-userauth-request "2\x00\x00\x00\x03tst\x00\x00\x00\x0essh-connection\x00\x00\x00\x04none"))
+
 (test
  "publickey (no signature)"
  `(userauth-request "tst" "ssh-connection" publickey #f ssh-ed25519

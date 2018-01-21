@@ -168,8 +168,14 @@
   (display (u2s (string-length packet)) op)
   (display packet op))
 
+(define (write-bufsym packet #!optional (op (current-output-port)))
+  (write-buflen (symbol->string packet) op))
+
 (define (write-u32 n #!optional (op (current-output-port)))
   (display (u2s n) op))
+
+(define (write-bool n #!optional (op (current-output-port)))
+  (write-byte (if n 1 0)))
 
 (define (write-payload-type type #!optional (op (current-output-port)))
   (write-byte (payload-type->int type) op))
@@ -285,8 +291,14 @@
   (define packet_length (s2u (read-string/check 4 ip)))
   (read-string/check packet_length ip))
 
+(define (read-bufsym #!optional (ip (current-input-port)))
+  (string->symbol (read-buflen ip)))
+
 (define (read-u32 #!optional (ip (current-input-port)))
   (s2u (read-string/check 4 ip)))
+
+(define (read-bool #!optional (ip (current-input-port)))
+  (if (= 0 (read-byte)) #f #t))
 
 (define (read-signpk #!optional (ip (current-input-port)))
   (define type "ssh-ed25519")
