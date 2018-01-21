@@ -170,7 +170,7 @@
 (define (ssh-write-uint32 n #!optional (op (current-output-port)))
   (display (u2s n) op))
 
-(define (write-bool n #!optional (op (current-output-port)))
+(define (ssh-write-boolean n #!optional (op (current-output-port)))
   (write-byte (if n 1 0)))
 
 (define (write-payload-type type #!optional (op (current-output-port)))
@@ -293,7 +293,7 @@
 (define (ssh-read-uint32 #!optional (ip (current-input-port)))
   (s2u (read-string/check 4 ip)))
 
-(define (read-bool #!optional (ip (current-input-port)))
+(define (ssh-read-boolean #!optional (ip (current-input-port)))
   (if (= 0 (read-byte)) #f #t))
 
 (define (read-signpk #!optional (ip (current-input-port)))

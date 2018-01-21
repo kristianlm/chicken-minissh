@@ -1,7 +1,6 @@
 ;; include me from within minissh.scm
 
 ;; for consistency:
-;; TODO: rename read-bool -> ssh-read-boolean
 
 ;; ==================== parse syntax ====================
 
@@ -21,7 +20,7 @@
          (parse (body ...))
          (parse-match matches ...)))))
 
-;; (wifs "\x01\x00\x00\x00\x03foo" (parse ((bool bar) (symbol test))))
+;; (wifs "\x01\x00\x00\x00\x03foo" (parse ((boolean bar) (symbol test))))
 ;; (wifs "\x00\x00\x00\x01a" (parse ((symbol test) (cond [(eq? test 'a)]))))
 (define-syntax parse
   (syntax-rules (cond)
@@ -45,7 +44,7 @@
            (unparse datum (body ...))
            (unparse-match datum matches ...))))))
 
-;; (wots (unparse '(#t) ((bool foo))))
+;; (wots (unparse '(#t) ((boolean foo))))
 ;; (wots (unparse '("guest" publickey) ((string username) (symbol authtype))))
 (define-syntax unparse
   (syntax-rules (cond)
@@ -122,7 +121,7 @@
 (define-parsepair channel-request
   ((uint32 cid)
    (symbol request-type)
-   (bool want-reply?)
+   (boolean want-reply?)
    (cond [(eq? request-type 'pty-req)
           (string term)
           (uint32    width/characters)
@@ -151,7 +150,7 @@
           (uint32    height/pixels)]
 
          [(eq? request-type 'xon-xoff)
-          (bool      client-can-do)]
+          (boolean      client-can-do)]
 
          [(eq? request-type 'signal)
           (symbol name)] ;; without "SIG" prefix
@@ -164,7 +163,7 @@
           ;; INT KILL PIPE QUIT SEGV TERM USR1 USR2
           ;; + local ones with an @-sign
           (symbol name) ;; without the "SIG" prefix
-          (bool core-dumped?)
+          (boolean core-dumped?)
           (string  error-message) ;; ISO-10646 UTF-8 encoding
           (string  language)]     ;; RFC3066
 
@@ -182,7 +181,7 @@
    (string service)
    (symbol method)
    (cond [(eq? method 'publickey)
-          (bool signature?)
+          (boolean signature?)
           (cond [(eq? signature? #f)
                  (symbol algorithm)
                  (string pk)]
@@ -191,7 +190,7 @@
                  (string pk)
                  (string signature)])]
          [(eq? method 'password)
-          (bool renew?)
+          (boolean renew?)
           (cond [(eq? renew? #f)
                  (string plaintext-password)]
                 [(eq? renew? #t)
