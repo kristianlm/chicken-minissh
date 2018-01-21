@@ -1,7 +1,5 @@
 ;; include me from within minissh.scm
 
-;; for consistency:
-
 ;; ==================== parse syntax ====================
 
 ;; (syntax-prefix "foo-" test) => unbound variable foo-test (yey!)
@@ -30,7 +28,7 @@
      (parse-match matches ...))
 
     ((_ ((type name) rest ...))
-     (let ((name ((syntax-prefix "read-" type))))
+     (let ((name ((syntax-prefix "ssh-read-" type))))
        (cons name (parse (rest ...)))))))
 
 ;; ==================== unparse syntax ====================
@@ -56,7 +54,7 @@
     ((_ x ((type name) rest ...))
      (let ((datum x))
        (let ((name (car datum)))
-         ((syntax-prefix "write-" type) name)
+         ((syntax-prefix "ssh-write-" type) name)
          (unparse (cdr datum) (rest ...)))))))
 
 ;; make two definitions in one go
