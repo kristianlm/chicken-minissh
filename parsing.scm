@@ -1,10 +1,5 @@
 ;; include me from within minissh.scm
 
-;; for consistency:
-;; TODO: rename read-buflen -> ssh-read-string
-;; TODO: rename read-u32 -> ssh-read-uint32
-;; TODO: rename read-bool -> ssh-read-boolean
-
 ;; ==================== parse syntax ====================
 
 ;; (syntax-prefix "foo-" test) => unbound variable foo-test (yey!)
@@ -23,8 +18,8 @@
          (parse (body ...))
          (parse-match matches ...)))))
 
-;; (wifs "\x01\x00\x00\x00\x03foo" (parse ((bool bar) (bufsym test))))
-;; (wifs "\x00\x00\x00\x01a" (parse ((bufsym test) (cond [(eq? test 'a)]))))
+;; (wifs "\x01\x00\x00\x00\x03foo" (parse ((boolean bar) (symbol test))))
+;; (wifs "\x00\x00\x00\x01a" (parse ((symbol test) (cond [(eq? test 'a)]))))
 (define-syntax parse
   (syntax-rules (cond)
     ((_ ()) '())
@@ -33,7 +28,7 @@
      (parse-match matches ...))
 
     ((_ ((type name) rest ...))
-     (let ((name ((syntax-prefix "read-" type))))
+     (let ((name ((syntax-prefix "ssh-read-" type))))
        (cons name (parse (rest ...)))))))
 
 ;; ==================== unparse syntax ====================
@@ -47,8 +42,8 @@
            (unparse datum (body ...))
            (unparse-match datum matches ...))))))
 
-;; (wots (unparse '(#t) ((bool foo))))
-;; (wots (unparse '("guest" publickey) ((buflen username) (bufsym authtype))))
+;; (wots (unparse '(#t) ((boolean foo))))
+;; (wots (unparse '("guest" publickey) ((string username) (symbol authtype))))
 (define-syntax unparse
   (syntax-rules (cond)
     ((_ x ()) (begin))
@@ -59,7 +54,7 @@
     ((_ x ((type name) rest ...))
      (let ((datum x))
        (let ((name (car datum)))
-         ((syntax-prefix "write-" type) name)
+         ((syntax-prefix "ssh-write-" type) name)
          (unparse (cdr datum) (rest ...)))))))
 
 ;; make two definitions in one go
@@ -89,90 +84,90 @@
        type
        (lambda (payload)
          (wifs payload
-               (cons (read-payload-type (quote type))
+               (cons (ssh-read-msgno (quote type))
                      (parse pspec))))
        (lambda (msg)
          (unless (eq? 'type (car msg))
            (error "unparsing: tag mismatch (expected, actual)"
                   'type (car msg)))
          (wots
-          (write-payload-type (quote type))
+          (ssh-write-msgno (quote type))
           (unparse (cdr msg) pspec)))))))
 
 ;; ====================
 
 (define-parsepair kexdh-reply
   ((signpk ssh-hostkey-pk)
-   (buflen       serverpk)
+   (string       serverpk)
    (signpk      signature)))
 
 (define-parsepair disconnect
-  ((u32    reason-code)
-   (buflen description)
-   (buflen language)))
+  ((uint32    reason-code)
+   (string description)
+   (string language)))
 
 (define-parsepair service-request
-  ((buflen name)))
+  ((string name)))
 
 (define-parsepair channel-open
-  ((buflen channel-type)
-   (u32    sender-channel)
-   (u32    window-size)
-   (u32    max-packet-size)))
+  ((string channel-type)
+   (uint32    sender-channel)
+   (uint32    window-size)
+   (uint32    max-packet-size)))
 
 ;; see https://tools.ietf.org/html/rfc4254#section-6.2
 (define-parsepair channel-request
-  ((u32 cid)
-   (bufsym request-type)
-   (bool want-reply?)
+  ((uint32 cid)
+   (symbol request-type)
+   (boolean want-reply?)
    (cond [(eq? request-type 'pty-req)
-          (buflen term)
-          (u32    width/characters)
-          (u32    height/rows)
-          (u32    width/pixels)
-          (u32    height/pixels)
-          (buflen modes)]
+          (string term)
+          (uint32    width/characters)
+          (uint32    height/rows)
+          (uint32    width/pixels)
+          (uint32    height/pixels)
+          (string modes)]
 
          ;; TODO: x11-req
          [(eq? request-type 'env)
-          (buflen name)
-          (buflen value)]
+          (string name)
+          (string value)]
 
          [(eq? request-type 'shell)]
 
          [(eq? request-type 'exec)
-          (buflen command)]
+          (string command)]
 
          [(eq? request-type 'subsystem)
-          (buflen name)]
+          (string name)]
 
          [(eq? request-type 'window-change)
-          (u32    width)
-          (u32    height)
-          (u32    width/pixels)
-          (u32    height/pixels)]
+          (uint32    width)
+          (uint32    height)
+          (uint32    width/pixels)
+          (uint32    height/pixels)]
 
          [(eq? request-type 'xon-xoff)
-          (bool      client-can-do)]
+          (boolean      client-can-do)]
 
          [(eq? request-type 'signal)
-          (bufsym name)] ;; without "SIG" prefix
+          (symbol name)] ;; without "SIG" prefix
 
          [(eq? request-type 'exit-status)
-          (u32 status)]
+          (uint32 status)]
 
          [(eq? request-type 'exit-signal)
           ;; valid signal names: ABRT ALRM FPE HUP ILL
           ;; INT KILL PIPE QUIT SEGV TERM USR1 USR2
           ;; + local ones with an @-sign
-          (bufsym name) ;; without the "SIG" prefix
-          (bool core-dumped?)
-          (buflen  error-message) ;; ISO-10646 UTF-8 encoding
-          (buflen  language)]     ;; RFC3066
+          (symbol name) ;; without the "SIG" prefix
+          (boolean core-dumped?)
+          (string  error-message) ;; ISO-10646 UTF-8 encoding
+          (string  language)]     ;; RFC3066
 
          [(eq? request-type 'tcpip-forward)
-          (buflen address) ;; (e.g., "0.0.0.0")
-          (u32    port)]
+          (string address) ;; (e.g., "0.0.0.0")
+          (uint32    port)]
 
          [#t ;; OBS: any guarantees that we can read until eof?
           ;;(string anything)
@@ -180,37 +175,37 @@
 
 ;; https://tools.ietf.org/html/rfc4252#section-7
 (define-parsepair userauth-request
-  ((buflen user)
-   (buflen service)
-   (bufsym method)
+  ((string user)
+   (string service)
+   (symbol method)
    (cond [(eq? method 'publickey)
-          (bool signature?)
+          (boolean signature?)
           (cond [(eq? signature? #f)
-                 (bufsym algorithm)
-                 (buflen pk)]
+                 (symbol algorithm)
+                 (string pk)]
                 [(eq? signature? #t)
-                 (bufsym algorithm)
-                 (buflen pk)
-                 (buflen signature)])]
+                 (symbol algorithm)
+                 (string pk)
+                 (string signature)])]
          [(eq? method 'password)
-          (bool renew?)
+          (boolean renew?)
           (cond [(eq? renew? #f)
-                 (buflen plaintext-password)]
+                 (string plaintext-password)]
                 [(eq? renew? #t)
-                 (buflen old-password)
-                 (buflen new-password)])]
+                 (string old-password)
+                 (string new-password)])]
          [(eq? method 'none)])))
 
 
 (define-parsepair channel-data
-  ((u32    cid)
-   (buflen data)))
+  ((uint32    cid)
+   (string data)))
 
 (define-parsepair channel-eof
-  ((u32 cid)))
+  ((uint32 cid)))
 
 (define-parsepair channel-close
-  ((u32 cid)))
+  ((uint32 cid)))
 
 ;; (parse-channel-eof "`\x00\x00\x00\x01")
 ;; (parse-channel-close "a\x00\x00\x00\x01")

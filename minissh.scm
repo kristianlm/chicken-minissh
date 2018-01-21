@@ -160,27 +160,27 @@
       (error (conc "unexpected EOF. wanted " len " bytes, got") result))
     result))
 
-(define (write-buflen packet #!optional (op (current-output-port)))
+(define (ssh-write-string packet #!optional (op (current-output-port)))
   (display (u2s (string-length packet)) op)
   (display packet op))
 
-(define (write-bufsym packet #!optional (op (current-output-port)))
-  (write-buflen (symbol->string packet) op))
+(define (ssh-write-symbol packet #!optional (op (current-output-port)))
+  (ssh-write-string (symbol->string packet) op))
 
-(define (write-u32 n #!optional (op (current-output-port)))
+(define (ssh-write-uint32 n #!optional (op (current-output-port)))
   (display (u2s n) op))
 
-(define (write-bool n #!optional (op (current-output-port)))
+(define (ssh-write-boolean n #!optional (op (current-output-port)))
   (write-byte (if n 1 0)))
 
-(define (write-payload-type type #!optional (op (current-output-port)))
+(define (ssh-write-msgno type #!optional (op (current-output-port)))
   (write-byte (payload-type->int type) op))
 
 ;; see https://tools.ietf.org/html/rfc4251#section-5
-(define (write-name-list l)
+(define (ssh-write-list l)
   ;; TODO: check for any #\, in items
   (define s (string-join (intersperse l ",") ""))
-  (display "\x00\x00\x00") ;; TODO proper u32
+  (display "\x00\x00\x00") ;; TODO proper uint32
   (write-byte (string-length s))
   (display s))
 
@@ -192,10 +192,10 @@
       str))
 
 (define (write-mpint/positive str)
-  (write-buflen (string->mpint str)))
+  (ssh-write-string (string->mpint str)))
 
 (define (write-payload/none ssh payload)
-  (write-buflen (wots (payload-pad payload 8 4)) (ssh-op ssh)))
+  (ssh-write-string (wots (payload-pad payload 8 4)) (ssh-op ssh)))
 
 (define (write-payload ssh payload)
   (with-output-to-port (current-error-port)
@@ -255,16 +255,16 @@
   (display "\x14")           ;; SSH_MSG_KEXINIT
   (display (read-string 16 (current-entropy-port)))
 
-  (write-name-list '("curve25519-sha256@libssh.org")) ;; kex_algorithms
-  (write-name-list '("ssh-ed25519")) ;; server_host_key_algorithms
-  (write-name-list '("chacha20-poly1305@openssh.com")) ;; encryption_algorithms_c->s
-  (write-name-list '("chacha20-poly1305@openssh.com")) ;; encryption_algorithms_s->c
-  (write-name-list '()) ;; mac_algorithms_client_to_server
-  (write-name-list '()) ;; mac_algorithms_server_to_client
-  (write-name-list '("none")) ;; compression_algorithms_client_to_server
-  (write-name-list '("none")) ;; compression_algorithms_server_to_client
-  (write-name-list '()) ;; languages_client_to_server
-  (write-name-list '()) ;; languages_server_to_client
+  (ssh-write-list '("curve25519-sha256@libssh.org")) ;; kex_algorithms
+  (ssh-write-list '("ssh-ed25519")) ;; server_host_key_algorithms
+  (ssh-write-list '("chacha20-poly1305@openssh.com")) ;; encryption_algorithms_c->s
+  (ssh-write-list '("chacha20-poly1305@openssh.com")) ;; encryption_algorithms_s->c
+  (ssh-write-list '()) ;; mac_algorithms_client_to_server
+  (ssh-write-list '()) ;; mac_algorithms_server_to_client
+  (ssh-write-list '("none")) ;; compression_algorithms_client_to_server
+  (ssh-write-list '("none")) ;; compression_algorithms_server_to_client
+  (ssh-write-list '()) ;; languages_client_to_server
+  (ssh-write-list '()) ;; languages_server_to_client
   (display "\x00") ;; first_kex_packet_follows
   (display "\x00\x00\x00\x00") ;; reserved00
   )
@@ -283,34 +283,38 @@
 
 ;; (payload-type "\x06") (payload-type "\xff")
 
-(define (read-buflen #!optional (ip (current-input-port)))
+(define (ssh-read-string #!optional (ip (current-input-port)))
   (define packet_length (s2u (read-string/check 4 ip)))
   (read-string/check packet_length ip))
 
-(define (read-bufsym #!optional (ip (current-input-port)))
-  (string->symbol (read-buflen ip)))
+(define (ssh-read-symbol #!optional (ip (current-input-port)))
+  (string->symbol (ssh-read-string ip)))
 
-(define (read-u32 #!optional (ip (current-input-port)))
+(define (ssh-read-uint32 #!optional (ip (current-input-port)))
   (s2u (read-string/check 4 ip)))
 
-(define (read-bool #!optional (ip (current-input-port)))
+(define (ssh-read-boolean #!optional (ip (current-input-port)))
   (if (= 0 (read-byte)) #f #t))
 
-(define (read-signpk #!optional (ip (current-input-port)))
+(define (ssh-read-signpk #!optional (ip (current-input-port)))
   (define type "ssh-ed25519")
   ;;(assert (= (string-length pk) 32))
-  (wifs (read-buflen)
-        (assert (equal? type (read-buflen)))
-        (read-buflen)))
+  (wifs (ssh-read-string)
+        (assert (equal? type (ssh-read-string)))
+        (ssh-read-string)))
 
-(define (read-payload-type #!key expect (ip (current-input-port)))
+(define (ssh-read-msgno #!key expect (ip (current-input-port)))
   (let ((result (payload-type (read-string/check 1 ip))))
     (unless (eq? (or expect result) result)
       (error "payload-type mismatch" result expect))
     result))
 
+(define (ssh-read-list)
+    (define len (s2u (read-string 4)))
+    (string-split (read-string len) ","))
+
 (define (read-payload/none ssh)
-  (packet-payload (read-buflen (ssh-ip ssh))))
+  (packet-payload (ssh-read-string (ssh-ip ssh))))
 
 
 (define (make-payload-reader/chacha20 key-main key-header)
@@ -396,10 +400,10 @@
   (blob->string (scalarmult* (string->blob server-sk)
                              (string->blob client-pk))))
 
-(define (write-signpk pk)
+(define (ssh-write-signpk pk)
   (define type "ssh-ed25519")
   ;;(assert (= (string-length pk) 32))
-  (write-buflen
+  (ssh-write-string
    (conc (u2s (string-length type)) type
          (u2s (string-length pk))   pk)))
 
@@ -422,13 +426,13 @@
     (ssh-server/client ssh local-pk remote-pk))
 
   (let ((content (wots
-                  (write-buflen (ssh-hello/client ssh))
-                  (write-buflen (ssh-hello/server ssh))
-                  (write-buflen kex/client)
-                  (write-buflen kex/server)
-                  (write-signpk host-pk)
-                  (write-buflen clientpk)
-                  (write-buflen serverpk)
+                  (ssh-write-string (ssh-hello/client ssh))
+                  (ssh-write-string (ssh-hello/server ssh))
+                  (ssh-write-string kex/client)
+                  (ssh-write-string kex/server)
+                  (ssh-write-signpk host-pk)
+                  (ssh-write-string clientpk)
+                  (ssh-write-string serverpk)
                   (write-mpint/positive sharedsecret))))
     ;;(print "hashcontent: " (string->blob content))
     (sha256 content)))
@@ -453,10 +457,6 @@
   (define cookie (read-string 16)) ;; random bytes
   (print "cookie: " (wots (write cookie)))
 
-  (define (read-name-list)
-    (define len (s2u (read-string 4)))
-    (string-split (read-string len) ","))
-
   (define-syntax pprint
     (syntax-rules ()
       ((_ var)
@@ -464,16 +464,16 @@
          (print 'var " (" (length var) ")")
          (for-each (lambda (name) (print "  " (wots (write name)))) var)))))
 
-  (define kex_algorithms (read-name-list))
-  (define server_host_key_algorithms (read-name-list))
-  (define encryption_algorithms_client_to_server (read-name-list))
-  (define encryption_algorithms_server_to_client (read-name-list))
-  (define mac_algorithms_client_to_server (read-name-list))
-  (define mac_algorithms_server_to_client (read-name-list))
-  (define compression_algorithms_client_to_server (read-name-list))
-  (define compression_algorithms_server_to_client (read-name-list))
-  (define languages_client_to_server (read-name-list))
-  (define languages_server_to_client (read-name-list))
+  (define kex_algorithms (ssh-read-list))
+  (define server_host_key_algorithms (ssh-read-list))
+  (define encryption_algorithms_client_to_server (ssh-read-list))
+  (define encryption_algorithms_server_to_client (ssh-read-list))
+  (define mac_algorithms_client_to_server (ssh-read-list))
+  (define mac_algorithms_server_to_client (ssh-read-list))
+  (define compression_algorithms_client_to_server (ssh-read-list))
+  (define compression_algorithms_server_to_client (ssh-read-list))
+  (define languages_client_to_server (ssh-read-list))
+  (define languages_server_to_client (ssh-read-list))
 
   (define first_kex_packet_follows (read-byte))
   (define reserved00 (s2u (read-string 4)))
@@ -528,7 +528,7 @@
     (define kexdh-init (read-payload/expect ssh 'kexdh-init))
     (define client-pk (wifs kexdh-init
                             (read-byte) ;; ignore payload type
-                            (read-buflen)))
+                            (ssh-read-string)))
 
     (define-values (server-sk server-pk) (make-curve25519-keypair))
     (define sharedsecret (string->mpint (curve25519-dh server-sk client-pk)))
@@ -536,10 +536,10 @@
     (define signature (substring ((ssh-hostkey-signer ssh) hash) 0 64))
 
     (write-payload ssh
-                   (wots (write-payload-type 'kexdh-reply)
-                         (write-signpk (ssh-hostkey-pk ssh))
-                         (write-buflen server-pk)
-                         (write-signpk signature)))
+                   (wots (ssh-write-msgno 'kexdh-reply)
+                         (ssh-write-signpk (ssh-hostkey-pk ssh))
+                         (ssh-write-string server-pk)
+                         (ssh-write-signpk signature)))
 
     (values sharedsecret hash))
 
@@ -549,8 +549,8 @@
       (make-curve25519-keypair))
 
     (write-payload ssh
-                   (wots (write-payload-type 'kexdh-init)
-                         (write-buflen client-pk)))
+                   (wots (ssh-write-msgno 'kexdh-init)
+                         (ssh-write-string client-pk)))
 
     (define kexdh-reply (payload-parse (read-payload/expect ssh 'kexdh-reply)))
     (match kexdh-reply
@@ -566,7 +566,7 @@
         (init-server)
         (init-client)))
 
-  (write-payload ssh (wots (write-payload-type 'newkeys)))
+  (write-payload ssh (wots (ssh-write-msgno 'newkeys)))
   (read-payload/expect ssh 'newkeys)
 
   (define (kex-derive-key id)
@@ -595,11 +595,11 @@
 
   (write-payload ssh
                  (wots
-                  (write-payload-type 'channel-open-confirmation)
-                  (write-u32 cid)            ;; client cid
-                  (write-u32 cid)            ;; server cid (same)
-                  (display (u2s ws-local))   ;; window size
-                  (display (u2s #x800000)))) ;; max packet size
+                  (ssh-write-msgno 'channel-open-confirmation)
+                  (ssh-write-uint32 cid)        ;; client cid
+                  (ssh-write-uint32 cid)        ;; server cid (same)
+                  (ssh-write-uint32 ws-local)   ;; window size
+                  (ssh-write-uint32 #x800000))) ;; max packet size
 
   (set! (ssh-channel ssh cid)
         (make-ssh-channel ssh type cid
@@ -620,9 +620,9 @@
      ch (+ (ssh-channel-bytes/read ch) increment))
     (write-payload
      ssh
-     (wots (write-payload-type 'channel-window-adjust)
-           (write-u32 cid)
-           (write-u32 increment)))))
+     (wots (ssh-write-msgno 'channel-window-adjust)
+           (ssh-write-uint32 cid)
+           (ssh-write-uint32 increment)))))
 
 (define (handle-channel-eof ssh cid)
   ;; TODO: mark channel as "closed"?
@@ -630,8 +630,8 @@
 
 (define (handle-channel-request ssh cid type want-reply? . rest)
   (write-payload ssh
-                 (wots (write-payload-type 'channel-success)
-                       (write-u32 cid))))
+                 (wots (ssh-write-msgno 'channel-success)
+                       (ssh-write-uint32 cid))))
 
 (define (ssh-channel-write ch str)
   (assert (string? str))
@@ -639,16 +639,16 @@
   (when (< (ssh-channel-bytes/write ch) len)
     (print "TODO: handle wait for window adjust"))
   (write-payload (ssh-channel-ssh ch)
-                 (wots (write-payload-type 'channel-data)
-                       (write-u32 (ssh-channel-cid ch))
-                       (write-buflen str)))
+                 (wots (ssh-write-msgno 'channel-data)
+                       (ssh-write-uint32 (ssh-channel-cid ch))
+                       (ssh-write-string str)))
   (%ssh-channel-bytes/write-set!
    ch (- (ssh-channel-bytes/write ch) len)))
 
 (define (ssh-channel-close ch)
   (write-payload (ssh-channel-ssh ch)
-                 (wots (write-payload-type 'channel-close)
-                       (write-u32 (ssh-channel-cid ch)))))
+                 (wots (ssh-write-msgno 'channel-close)
+                       (ssh-write-uint32 (ssh-channel-cid ch)))))
 
 (define (ssh-setup-channel-handlers! ssh)
   ;; it's probably important to not allow this too early:
@@ -736,9 +736,9 @@
 
 
 (define (unparse-userauth-banner msg #!optional (language ""))
-  (wots (write-payload-type 'userauth-banner)
-        (write-buflen msg)
-        (write-buflen language)))
+  (wots (ssh-write-msgno 'userauth-banner)
+        (ssh-write-string msg)
+        (ssh-write-string language)))
 
 (define (write-banner ssh msg #!optional (language ""))
   (when (ssh-user ssh)
@@ -749,24 +749,24 @@
 
 (define (pk->pkblob pk)
   (wifs pk
-        (assert (equal? "ssh-ed25519" (read-buflen)))
-        (read-buflen)))
+        (assert (equal? "ssh-ed25519" (ssh-read-string)))
+        (ssh-read-string)))
 
 (define (sign->signblob sign)
   (wifs sign
-        (assert (equal? "ssh-ed25519" (read-buflen)))
-        (read-buflen)))
+        (assert (equal? "ssh-ed25519" (ssh-read-string)))
+        (ssh-read-string)))
 
 (define (userauth-publickey-signature-blob ssh user pk)
   (wots
-   (write-buflen (ssh-sid ssh)) ;; session identifier
-   (write-payload-type 'userauth-request)
-   (write-buflen user)
-   (write-buflen "ssh-connection") ;; service name
-   (write-buflen "publickey")
-   (write-byte 1)
-   (write-buflen "ssh-ed25519")
-   (write-buflen pk)))
+   (ssh-write-string (ssh-sid ssh)) ;; session identifier
+   (ssh-write-msgno 'userauth-request)
+   (ssh-write-string user)
+   (ssh-write-string "ssh-connection") ;; service name
+   (ssh-write-string "publickey")
+   (ssh-write-boolean #t)
+   (ssh-write-string "ssh-ed25519")
+   (ssh-write-string pk)))
 
 (define (userauth-publickey-verify ssh user pk signature)
   (define signbuff (userauth-publickey-signature-blob ssh user pk))
@@ -782,25 +782,25 @@
     (define auths
       (append (if publickey '("publickey") '())
               (if password  '("password")  '())))
-    (write-payload ssh (wots (write-payload-type 'userauth-failure)
-                             (write-name-list auths)
-                             (write-byte (if partial? 1 0)))))
+    (write-payload ssh (wots (ssh-write-msgno 'userauth-failure)
+                             (ssh-write-list auths)
+                             (ssh-write-boolean partial?))))
   (let loop ()
 
     (match (next-payload ssh)
 
       (('service-request "ssh-userauth")
-       (write-payload ssh (wots (write-payload-type 'service-accept)
-                                (write-buflen "ssh-userauth")))
+       (write-payload ssh (wots (ssh-write-msgno 'service-accept)
+                                (ssh-write-string "ssh-userauth")))
        (loop))
 
       ;; client asks if pk would be ok (since the actual signing is expensive)
       (('userauth-request user "ssh-connection" 'publickey #f 'ssh-ed25519 pk)
        (cond ((and publickey (publickey user 'ssh-ed25519 pk #f))
               ;; tell client pk will be accepted if upcoming signature verifies
-              (write-payload ssh (wots (write-payload-type 'userauth-pk-ok)
-                                       (write-buflen "ssh-ed25519")
-                                       (write-buflen pk)))
+              (write-payload ssh (wots (ssh-write-msgno 'userauth-pk-ok)
+                                       (ssh-write-string "ssh-ed25519")
+                                       (ssh-write-string pk)))
               (loop))
              (else
               (fail!)
@@ -812,7 +812,7 @@
                    (publickey user 'ssh-ed25519 pk #t))
               (if banner (banner user))
               (%ssh-user-set! ssh user)
-              (write-payload ssh (wots (write-payload-type 'userauth-success))))
+              (write-payload ssh (wots (ssh-write-msgno 'userauth-success))))
              ;; success, no loop ^
              (else
               (write-payload ssh
@@ -825,7 +825,7 @@
        (cond ((and password (password user plaintext-password))
               (if banner (banner user))
               (%ssh-user-set! ssh user)
-              (write-payload ssh (wots (write-payload-type 'userauth-success))))
+              (write-payload ssh (wots (ssh-write-msgno 'userauth-success))))
              ;; success, no loop ^
              (else
               (fail!)
