@@ -596,10 +596,10 @@
   (write-payload ssh
                  (wots
                   (ssh-write-msgno 'channel-open-confirmation)
-                  (ssh-write-uint32 cid)            ;; client cid
-                  (ssh-write-uint32 cid)            ;; server cid (same)
-                  (display (u2s ws-local))   ;; window size
-                  (display (u2s #x800000)))) ;; max packet size
+                  (ssh-write-uint32 cid)        ;; client cid
+                  (ssh-write-uint32 cid)        ;; server cid (same)
+                  (ssh-write-uint32 ws-local)   ;; window size
+                  (ssh-write-uint32 #x800000))) ;; max packet size
 
   (set! (ssh-channel ssh cid)
         (make-ssh-channel ssh type cid
@@ -764,7 +764,7 @@
    (ssh-write-string user)
    (ssh-write-string "ssh-connection") ;; service name
    (ssh-write-string "publickey")
-   (write-byte 1)
+   (ssh-write-boolean #t)
    (ssh-write-string "ssh-ed25519")
    (ssh-write-string pk)))
 
