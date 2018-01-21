@@ -1,4 +1,4 @@
-;; include me from within ssh.scm
+;; include me from within minissh.scm
 
 (define (parse/check byte expected)
   (assert (symbol? expected))

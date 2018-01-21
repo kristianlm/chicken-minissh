@@ -3,8 +3,8 @@
 (compile -s chacha20.import.scm)
 (install-extension 'chacha20 '("chacha20.so" "chacha20.import.so"))
 
-(compile -s  -J ssh-module.scm -o ssh.so)
-(compile -s ssh.import.scm)
-(install-extension 'ssh '("ssh.so" "ssh.import.so"))
+(compile -s  -J minissh-module.scm -o minissh.so)
+(compile -s minissh.import.scm)
+(install-extension 'minissh '("minissh.so" "minissh.import.so"))
 
 

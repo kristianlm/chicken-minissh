@@ -1,4 +1,4 @@
-(use test ssh base64)
+(use test minissh base64)
 
 (test `(channel-open "session" 1 2 3)
       (parse-channel-open "Z\x00\x00\x00\asession\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x03"))

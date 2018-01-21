@@ -1,4 +1,4 @@
-(use tcp ssh tweetnacl sha2 matchable)
+(use tcp minissh tweetnacl sha2 matchable)
 
 (begin
 

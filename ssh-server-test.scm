@@ -1,4 +1,4 @@
-(use srfi-18 matchable ssh base64)
+(use srfi-18 matchable minissh base64)
 
 ;;(include "ssh.scm")
 
