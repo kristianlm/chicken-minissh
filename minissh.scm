@@ -164,7 +164,7 @@
   (display (u2s (string-length packet)) op)
   (display packet op))
 
-(define (write-bufsym packet #!optional (op (current-output-port)))
+(define (ssh-write-symbol packet #!optional (op (current-output-port)))
   (ssh-write-string (symbol->string packet) op))
 
 (define (ssh-write-uint32 n #!optional (op (current-output-port)))
@@ -287,7 +287,7 @@
   (define packet_length (s2u (read-string/check 4 ip)))
   (read-string/check packet_length ip))
 
-(define (read-bufsym #!optional (ip (current-input-port)))
+(define (ssh-read-symbol #!optional (ip (current-input-port)))
   (string->symbol (ssh-read-string ip)))
 
 (define (ssh-read-uint32 #!optional (ip (current-input-port)))

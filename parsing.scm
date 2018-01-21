@@ -21,8 +21,8 @@
          (parse (body ...))
          (parse-match matches ...)))))
 
-;; (wifs "\x01\x00\x00\x00\x03foo" (parse ((bool bar) (bufsym test))))
-;; (wifs "\x00\x00\x00\x01a" (parse ((bufsym test) (cond [(eq? test 'a)]))))
+;; (wifs "\x01\x00\x00\x00\x03foo" (parse ((bool bar) (symbol test))))
+;; (wifs "\x00\x00\x00\x01a" (parse ((symbol test) (cond [(eq? test 'a)]))))
 (define-syntax parse
   (syntax-rules (cond)
     ((_ ()) '())
@@ -46,7 +46,7 @@
            (unparse-match datum matches ...))))))
 
 ;; (wots (unparse '(#t) ((bool foo))))
-;; (wots (unparse '("guest" publickey) ((string username) (bufsym authtype))))
+;; (wots (unparse '("guest" publickey) ((string username) (symbol authtype))))
 (define-syntax unparse
   (syntax-rules (cond)
     ((_ x ()) (begin))
@@ -121,7 +121,7 @@
 ;; see https://tools.ietf.org/html/rfc4254#section-6.2
 (define-parsepair channel-request
   ((uint32 cid)
-   (bufsym request-type)
+   (symbol request-type)
    (bool want-reply?)
    (cond [(eq? request-type 'pty-req)
           (string term)
@@ -154,7 +154,7 @@
           (bool      client-can-do)]
 
          [(eq? request-type 'signal)
-          (bufsym name)] ;; without "SIG" prefix
+          (symbol name)] ;; without "SIG" prefix
 
          [(eq? request-type 'exit-status)
           (uint32 status)]
@@ -163,7 +163,7 @@
           ;; valid signal names: ABRT ALRM FPE HUP ILL
           ;; INT KILL PIPE QUIT SEGV TERM USR1 USR2
           ;; + local ones with an @-sign
-          (bufsym name) ;; without the "SIG" prefix
+          (symbol name) ;; without the "SIG" prefix
           (bool core-dumped?)
           (string  error-message) ;; ISO-10646 UTF-8 encoding
           (string  language)]     ;; RFC3066
@@ -180,14 +180,14 @@
 (define-parsepair userauth-request
   ((string user)
    (string service)
-   (bufsym method)
+   (symbol method)
    (cond [(eq? method 'publickey)
           (bool signature?)
           (cond [(eq? signature? #f)
-                 (bufsym algorithm)
+                 (symbol algorithm)
                  (string pk)]
                 [(eq? signature? #t)
-                 (bufsym algorithm)
+                 (symbol algorithm)
                  (string pk)
                  (string signature)])]
          [(eq? method 'password)
