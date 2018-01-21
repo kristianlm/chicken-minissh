@@ -177,7 +177,7 @@
   (write-byte (payload-type->int type) op))
 
 ;; see https://tools.ietf.org/html/rfc4251#section-5
-(define (write-name-list l)
+(define (ssh-write-list l)
   ;; TODO: check for any #\, in items
   (define s (string-join (intersperse l ",") ""))
   (display "\x00\x00\x00") ;; TODO proper uint32
@@ -255,16 +255,16 @@
   (display "\x14")           ;; SSH_MSG_KEXINIT
   (display (read-string 16 (current-entropy-port)))
 
-  (write-name-list '("curve25519-sha256@libssh.org")) ;; kex_algorithms
-  (write-name-list '("ssh-ed25519")) ;; server_host_key_algorithms
-  (write-name-list '("chacha20-poly1305@openssh.com")) ;; encryption_algorithms_c->s
-  (write-name-list '("chacha20-poly1305@openssh.com")) ;; encryption_algorithms_s->c
-  (write-name-list '()) ;; mac_algorithms_client_to_server
-  (write-name-list '()) ;; mac_algorithms_server_to_client
-  (write-name-list '("none")) ;; compression_algorithms_client_to_server
-  (write-name-list '("none")) ;; compression_algorithms_server_to_client
-  (write-name-list '()) ;; languages_client_to_server
-  (write-name-list '()) ;; languages_server_to_client
+  (ssh-write-list '("curve25519-sha256@libssh.org")) ;; kex_algorithms
+  (ssh-write-list '("ssh-ed25519")) ;; server_host_key_algorithms
+  (ssh-write-list '("chacha20-poly1305@openssh.com")) ;; encryption_algorithms_c->s
+  (ssh-write-list '("chacha20-poly1305@openssh.com")) ;; encryption_algorithms_s->c
+  (ssh-write-list '()) ;; mac_algorithms_client_to_server
+  (ssh-write-list '()) ;; mac_algorithms_server_to_client
+  (ssh-write-list '("none")) ;; compression_algorithms_client_to_server
+  (ssh-write-list '("none")) ;; compression_algorithms_server_to_client
+  (ssh-write-list '()) ;; languages_client_to_server
+  (ssh-write-list '()) ;; languages_server_to_client
   (display "\x00") ;; first_kex_packet_follows
   (display "\x00\x00\x00\x00") ;; reserved00
   )
@@ -308,6 +308,10 @@
     (unless (eq? (or expect result) result)
       (error "payload-type mismatch" result expect))
     result))
+
+(define (ssh-read-list)
+    (define len (s2u (read-string 4)))
+    (string-split (read-string len) ","))
 
 (define (read-payload/none ssh)
   (packet-payload (ssh-read-string (ssh-ip ssh))))
@@ -453,10 +457,6 @@
   (define cookie (read-string 16)) ;; random bytes
   (print "cookie: " (wots (write cookie)))
 
-  (define (read-name-list)
-    (define len (s2u (read-string 4)))
-    (string-split (read-string len) ","))
-
   (define-syntax pprint
     (syntax-rules ()
       ((_ var)
@@ -464,16 +464,16 @@
          (print 'var " (" (length var) ")")
          (for-each (lambda (name) (print "  " (wots (write name)))) var)))))
 
-  (define kex_algorithms (read-name-list))
-  (define server_host_key_algorithms (read-name-list))
-  (define encryption_algorithms_client_to_server (read-name-list))
-  (define encryption_algorithms_server_to_client (read-name-list))
-  (define mac_algorithms_client_to_server (read-name-list))
-  (define mac_algorithms_server_to_client (read-name-list))
-  (define compression_algorithms_client_to_server (read-name-list))
-  (define compression_algorithms_server_to_client (read-name-list))
-  (define languages_client_to_server (read-name-list))
-  (define languages_server_to_client (read-name-list))
+  (define kex_algorithms (ssh-read-list))
+  (define server_host_key_algorithms (ssh-read-list))
+  (define encryption_algorithms_client_to_server (ssh-read-list))
+  (define encryption_algorithms_server_to_client (ssh-read-list))
+  (define mac_algorithms_client_to_server (ssh-read-list))
+  (define mac_algorithms_server_to_client (ssh-read-list))
+  (define compression_algorithms_client_to_server (ssh-read-list))
+  (define compression_algorithms_server_to_client (ssh-read-list))
+  (define languages_client_to_server (ssh-read-list))
+  (define languages_server_to_client (ssh-read-list))
 
   (define first_kex_packet_follows (read-byte))
   (define reserved00 (s2u (read-string 4)))
@@ -783,8 +783,8 @@
       (append (if publickey '("publickey") '())
               (if password  '("password")  '())))
     (write-payload ssh (wots (ssh-write-msgno 'userauth-failure)
-                             (write-name-list auths)
-                             (write-byte (if partial? 1 0)))))
+                             (ssh-write-list auths)
+                             (ssh-write-boolean partial?))))
   (let loop ()
 
     (match (next-payload ssh)
