@@ -141,10 +141,6 @@
     ((_ str body ...)
      (with-input-from-string str (lambda () body ...)))))
 
-(define (tostr o)
-  (with-output-to-string
-    (lambda () (write o))))
-
 (define (s2u s)
   (with-input-from-string s
     (lambda ()
@@ -455,7 +451,7 @@
 (define (SSH_MSG_KEXINIT)
 
   (define cookie (read-string 16)) ;; random bytes
-  (print "cookie: " (tostr cookie))
+  (print "cookie: " (wots (write cookie)))
 
   (define (read-name-list)
     (define len (s2u (read-string 4)))
@@ -466,7 +462,7 @@
       ((_ var)
        (begin
          (print 'var " (" (length var) ")")
-         (for-each (lambda (name) (print "  " (tostr name))) var)))))
+         (for-each (lambda (name) (print "  " (wots (write name)))) var)))))
 
   (define kex_algorithms (read-name-list))
   (define server_host_key_algorithms (read-name-list))
