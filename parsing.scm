@@ -98,11 +98,11 @@
 
 (define-parsepair kexdh-reply
   ((signpk ssh-hostkey-pk)
-   (string       serverpk)
-   (signpk      signature)))
+   (string serverpk)
+   (signpk signature)))
 
 (define-parsepair disconnect
-  ((uint32    reason-code)
+  ((uint32 reason-code)
    (string description)
    (string language)))
 
@@ -111,9 +111,9 @@
 
 (define-parsepair channel-open
   ((string channel-type)
-   (uint32    sender-channel)
-   (uint32    window-size)
-   (uint32    max-packet-size)))
+   (uint32 sender-channel)
+   (uint32 window-size)
+   (uint32 max-packet-size)))
 
 ;; see https://tools.ietf.org/html/rfc4254#section-6.2
 (define-parsepair channel-request
@@ -122,10 +122,10 @@
    (boolean want-reply?)
    (cond [(eq? request-type 'pty-req)
           (string term)
-          (uint32    width/characters)
-          (uint32    height/rows)
-          (uint32    width/pixels)
-          (uint32    height/pixels)
+          (uint32 width/characters)
+          (uint32 height/rows)
+          (uint32 width/pixels)
+          (uint32 height/pixels)
           (string modes)]
 
          ;; TODO: x11-req
@@ -142,13 +142,13 @@
           (string name)]
 
          [(eq? request-type 'window-change)
-          (uint32    width)
-          (uint32    height)
-          (uint32    width/pixels)
-          (uint32    height/pixels)]
+          (uint32 width)
+          (uint32 height)
+          (uint32 width/pixels)
+          (uint32 height/pixels)]
 
          [(eq? request-type 'xon-xoff)
-          (boolean      client-can-do)]
+          (boolean client-can-do)]
 
          [(eq? request-type 'signal)
           (symbol name)] ;; without "SIG" prefix
@@ -167,7 +167,7 @@
 
          [(eq? request-type 'tcpip-forward)
           (string address) ;; (e.g., "0.0.0.0")
-          (uint32    port)]
+          (uint32 port)]
 
          [#t ;; OBS: any guarantees that we can read until eof?
           ;;(string anything)
@@ -198,7 +198,7 @@
 
 
 (define-parsepair channel-data
-  ((uint32    cid)
+  ((uint32 cid)
    (string data)))
 
 (define-parsepair channel-eof
