@@ -86,14 +86,14 @@
        type
        (lambda (payload)
          (wifs payload
-               (cons (read-payload-type (quote type))
+               (cons (ssh-read-msgno (quote type))
                      (parse pspec))))
        (lambda (msg)
          (unless (eq? 'type (car msg))
            (error "unparsing: tag mismatch (expected, actual)"
                   'type (car msg)))
          (wots
-          (write-payload-type (quote type))
+          (ssh-write-msgno (quote type))
           (unparse (cdr msg) pspec)))))))
 
 ;; ====================

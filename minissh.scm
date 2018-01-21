@@ -173,7 +173,7 @@
 (define (ssh-write-boolean n #!optional (op (current-output-port)))
   (write-byte (if n 1 0)))
 
-(define (write-payload-type type #!optional (op (current-output-port)))
+(define (ssh-write-msgno type #!optional (op (current-output-port)))
   (write-byte (payload-type->int type) op))
 
 ;; see https://tools.ietf.org/html/rfc4251#section-5
@@ -303,7 +303,7 @@
         (assert (equal? type (ssh-read-string)))
         (ssh-read-string)))
 
-(define (read-payload-type #!key expect (ip (current-input-port)))
+(define (ssh-read-msgno #!key expect (ip (current-input-port)))
   (let ((result (payload-type (read-string/check 1 ip))))
     (unless (eq? (or expect result) result)
       (error "payload-type mismatch" result expect))
@@ -536,7 +536,7 @@
     (define signature (substring ((ssh-hostkey-signer ssh) hash) 0 64))
 
     (write-payload ssh
-                   (wots (write-payload-type 'kexdh-reply)
+                   (wots (ssh-write-msgno 'kexdh-reply)
                          (write-signpk (ssh-hostkey-pk ssh))
                          (ssh-write-string server-pk)
                          (write-signpk signature)))
@@ -549,7 +549,7 @@
       (make-curve25519-keypair))
 
     (write-payload ssh
-                   (wots (write-payload-type 'kexdh-init)
+                   (wots (ssh-write-msgno 'kexdh-init)
                          (ssh-write-string client-pk)))
 
     (define kexdh-reply (payload-parse (read-payload/expect ssh 'kexdh-reply)))
@@ -566,7 +566,7 @@
         (init-server)
         (init-client)))
 
-  (write-payload ssh (wots (write-payload-type 'newkeys)))
+  (write-payload ssh (wots (ssh-write-msgno 'newkeys)))
   (read-payload/expect ssh 'newkeys)
 
   (define (kex-derive-key id)
@@ -595,7 +595,7 @@
 
   (write-payload ssh
                  (wots
-                  (write-payload-type 'channel-open-confirmation)
+                  (ssh-write-msgno 'channel-open-confirmation)
                   (ssh-write-uint32 cid)            ;; client cid
                   (ssh-write-uint32 cid)            ;; server cid (same)
                   (display (u2s ws-local))   ;; window size
@@ -620,7 +620,7 @@
      ch (+ (ssh-channel-bytes/read ch) increment))
     (write-payload
      ssh
-     (wots (write-payload-type 'channel-window-adjust)
+     (wots (ssh-write-msgno 'channel-window-adjust)
            (ssh-write-uint32 cid)
            (ssh-write-uint32 increment)))))
 
@@ -630,7 +630,7 @@
 
 (define (handle-channel-request ssh cid type want-reply? . rest)
   (write-payload ssh
-                 (wots (write-payload-type 'channel-success)
+                 (wots (ssh-write-msgno 'channel-success)
                        (ssh-write-uint32 cid))))
 
 (define (ssh-channel-write ch str)
@@ -639,7 +639,7 @@
   (when (< (ssh-channel-bytes/write ch) len)
     (print "TODO: handle wait for window adjust"))
   (write-payload (ssh-channel-ssh ch)
-                 (wots (write-payload-type 'channel-data)
+                 (wots (ssh-write-msgno 'channel-data)
                        (ssh-write-uint32 (ssh-channel-cid ch))
                        (ssh-write-string str)))
   (%ssh-channel-bytes/write-set!
@@ -647,7 +647,7 @@
 
 (define (ssh-channel-close ch)
   (write-payload (ssh-channel-ssh ch)
-                 (wots (write-payload-type 'channel-close)
+                 (wots (ssh-write-msgno 'channel-close)
                        (ssh-write-uint32 (ssh-channel-cid ch)))))
 
 (define (ssh-setup-channel-handlers! ssh)
@@ -736,7 +736,7 @@
 
 
 (define (unparse-userauth-banner msg #!optional (language ""))
-  (wots (write-payload-type 'userauth-banner)
+  (wots (ssh-write-msgno 'userauth-banner)
         (ssh-write-string msg)
         (ssh-write-string language)))
 
@@ -760,7 +760,7 @@
 (define (userauth-publickey-signature-blob ssh user pk)
   (wots
    (ssh-write-string (ssh-sid ssh)) ;; session identifier
-   (write-payload-type 'userauth-request)
+   (ssh-write-msgno 'userauth-request)
    (ssh-write-string user)
    (ssh-write-string "ssh-connection") ;; service name
    (ssh-write-string "publickey")
@@ -782,7 +782,7 @@
     (define auths
       (append (if publickey '("publickey") '())
               (if password  '("password")  '())))
-    (write-payload ssh (wots (write-payload-type 'userauth-failure)
+    (write-payload ssh (wots (ssh-write-msgno 'userauth-failure)
                              (write-name-list auths)
                              (write-byte (if partial? 1 0)))))
   (let loop ()
@@ -790,7 +790,7 @@
     (match (next-payload ssh)
 
       (('service-request "ssh-userauth")
-       (write-payload ssh (wots (write-payload-type 'service-accept)
+       (write-payload ssh (wots (ssh-write-msgno 'service-accept)
                                 (ssh-write-string "ssh-userauth")))
        (loop))
 
@@ -798,7 +798,7 @@
       (('userauth-request user "ssh-connection" 'publickey #f 'ssh-ed25519 pk)
        (cond ((and publickey (publickey user 'ssh-ed25519 pk #f))
               ;; tell client pk will be accepted if upcoming signature verifies
-              (write-payload ssh (wots (write-payload-type 'userauth-pk-ok)
+              (write-payload ssh (wots (ssh-write-msgno 'userauth-pk-ok)
                                        (ssh-write-string "ssh-ed25519")
                                        (ssh-write-string pk)))
               (loop))
@@ -812,7 +812,7 @@
                    (publickey user 'ssh-ed25519 pk #t))
               (if banner (banner user))
               (%ssh-user-set! ssh user)
-              (write-payload ssh (wots (write-payload-type 'userauth-success))))
+              (write-payload ssh (wots (ssh-write-msgno 'userauth-success))))
              ;; success, no loop ^
              (else
               (write-payload ssh
@@ -825,7 +825,7 @@
        (cond ((and password (password user plaintext-password))
               (if banner (banner user))
               (%ssh-user-set! ssh user)
-              (write-payload ssh (wots (write-payload-type 'userauth-success))))
+              (write-payload ssh (wots (ssh-write-msgno 'userauth-success))))
              ;; success, no loop ^
              (else
               (fail!)
