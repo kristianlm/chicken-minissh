@@ -1,7 +1,6 @@
 ;; include me from within minissh.scm
 
 ;; for consistency:
-;; TODO: rename read-buflen -> ssh-read-string
 ;; TODO: rename read-bool -> ssh-read-boolean
 
 ;; ==================== parse syntax ====================
@@ -47,7 +46,7 @@
            (unparse-match datum matches ...))))))
 
 ;; (wots (unparse '(#t) ((bool foo))))
-;; (wots (unparse '("guest" publickey) ((buflen username) (bufsym authtype))))
+;; (wots (unparse '("guest" publickey) ((string username) (bufsym authtype))))
 (define-syntax unparse
   (syntax-rules (cond)
     ((_ x ()) (begin))
@@ -102,19 +101,19 @@
 
 (define-parsepair kexdh-reply
   ((signpk ssh-hostkey-pk)
-   (buflen       serverpk)
+   (string       serverpk)
    (signpk      signature)))
 
 (define-parsepair disconnect
   ((uint32    reason-code)
-   (buflen description)
-   (buflen language)))
+   (string description)
+   (string language)))
 
 (define-parsepair service-request
-  ((buflen name)))
+  ((string name)))
 
 (define-parsepair channel-open
-  ((buflen channel-type)
+  ((string channel-type)
    (uint32    sender-channel)
    (uint32    window-size)
    (uint32    max-packet-size)))
@@ -125,25 +124,25 @@
    (bufsym request-type)
    (bool want-reply?)
    (cond [(eq? request-type 'pty-req)
-          (buflen term)
+          (string term)
           (uint32    width/characters)
           (uint32    height/rows)
           (uint32    width/pixels)
           (uint32    height/pixels)
-          (buflen modes)]
+          (string modes)]
 
          ;; TODO: x11-req
          [(eq? request-type 'env)
-          (buflen name)
-          (buflen value)]
+          (string name)
+          (string value)]
 
          [(eq? request-type 'shell)]
 
          [(eq? request-type 'exec)
-          (buflen command)]
+          (string command)]
 
          [(eq? request-type 'subsystem)
-          (buflen name)]
+          (string name)]
 
          [(eq? request-type 'window-change)
           (uint32    width)
@@ -166,11 +165,11 @@
           ;; + local ones with an @-sign
           (bufsym name) ;; without the "SIG" prefix
           (bool core-dumped?)
-          (buflen  error-message) ;; ISO-10646 UTF-8 encoding
-          (buflen  language)]     ;; RFC3066
+          (string  error-message) ;; ISO-10646 UTF-8 encoding
+          (string  language)]     ;; RFC3066
 
          [(eq? request-type 'tcpip-forward)
-          (buflen address) ;; (e.g., "0.0.0.0")
+          (string address) ;; (e.g., "0.0.0.0")
           (uint32    port)]
 
          [#t ;; OBS: any guarantees that we can read until eof?
@@ -179,31 +178,31 @@
 
 ;; https://tools.ietf.org/html/rfc4252#section-7
 (define-parsepair userauth-request
-  ((buflen user)
-   (buflen service)
+  ((string user)
+   (string service)
    (bufsym method)
    (cond [(eq? method 'publickey)
           (bool signature?)
           (cond [(eq? signature? #f)
                  (bufsym algorithm)
-                 (buflen pk)]
+                 (string pk)]
                 [(eq? signature? #t)
                  (bufsym algorithm)
-                 (buflen pk)
-                 (buflen signature)])]
+                 (string pk)
+                 (string signature)])]
          [(eq? method 'password)
           (bool renew?)
           (cond [(eq? renew? #f)
-                 (buflen plaintext-password)]
+                 (string plaintext-password)]
                 [(eq? renew? #t)
-                 (buflen old-password)
-                 (buflen new-password)])]
+                 (string old-password)
+                 (string new-password)])]
          [(eq? method 'none)])))
 
 
 (define-parsepair channel-data
   ((uint32    cid)
-   (buflen data)))
+   (string data)))
 
 (define-parsepair channel-eof
   ((uint32 cid)))
