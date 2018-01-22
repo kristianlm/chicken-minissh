@@ -740,7 +740,7 @@
         (ssh-write-string msg)
         (ssh-write-string language)))
 
-(define (write-banner ssh msg #!optional (language ""))
+(define (ssh-write-banner ssh msg #!optional (language ""))
   (when (ssh-user ssh)
     (error "cannot write banner message after authentication is complete"))
   (write-payload ssh (unparse-userauth-banner msg language)))

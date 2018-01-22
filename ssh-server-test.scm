@@ -19,7 +19,7 @@
           (equal? pw "guest")))
    banner:
    (lambda (user)
-     (write-banner ssh (conc "Welcome, " user "\n"))))
+     (ssh-write-banner ssh (conc "Welcome, " user "\n"))))
 
   (ssh-setup-channel-handlers! ssh)
 
