@@ -61,6 +61,10 @@
          ((syntax-prefix "ssh-write-" type) name)
          (unparse (cdr datum) (rest ...)))))))
 
+(define *payload-parsers* (make-hash-table))
+(define (payload-parser payload-type)
+  (hash-table-ref *payload-parsers* payload-type))
+
 ;; make two definitions in one go
 ;; (expand '(define-parsepair* foo x y))
 (define-syntax define-parsepair*
@@ -78,7 +82,9 @@
 
        `(,(r 'begin)
          (,(r 'define) ,parser-name   ,parser)
-         (,(r 'define) ,unparser-name ,unparser))))))
+         (,(r 'define) ,unparser-name ,unparser)
+         (,(r 'hash-table-set!)
+          *payload-parsers* (quote ,type) ,parser-name))))))
 
 ;; (parse-spec->argumentnames '((string name) (cond [#t])))
 (define (parse-spec->argumentnames pspec)
@@ -267,14 +273,4 @@
 ;; (parse-channel-close "a\x00\x00\x00\x01")
 ;; (parse-channel-data "^\x00\x00\x00\x01\x00\x00\x00\rawdofihawofh\n")
 
-;; TODO: derive this automatically
-(define *payload-parsers*
-  `((kexdh-reply      .  ,parse-kexdh-reply)
-    (disconnect       .  ,parse-disconnect)
-    (service-request  .  ,parse-service-request)
-    (userauth-request .  ,parse-userauth-request)
-    (channel-open     .  ,parse-channel-open)
-    (channel-request  .  ,parse-channel-request)
-    (channel-data     .  ,parse-channel-data)
-    (channel-eof      .  ,parse-channel-eof)
-    (channel-close    .  ,parse-channel-close)))
+

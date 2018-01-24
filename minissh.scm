@@ -645,8 +645,8 @@
   (set! (ssh-handler ssh 'channel-close)    handle-channel-close))
 
 (define (payload-parse payload)
-  (cond ((assoc (payload-type payload) *payload-parsers*) =>
-         (lambda (pair) ((cdr pair) payload)))
+  (cond ((hash-table-ref *payload-parsers* (payload-type payload) (lambda () #f)) =>
+         (lambda (parser) (parser payload)))
         (else (list (payload-type payload) 'unparsed payload))))
 
 (define (handle-parsed-payload ssh parsed)
