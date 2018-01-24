@@ -219,6 +219,9 @@
                  (string new-password)])]
          [(eq? method 'none)])))
 
+(define-parsepair userauth-banner
+  ((string msg)
+   (string language)))
 
 (define-parsepair channel-data
   ((uint32 cid)

@@ -733,11 +733,6 @@
   (%ssh-hello/read-set! ssh (read-protocol-exchange (ssh-ip ssh))))
 
 
-(define (unparse-userauth-banner msg #!optional (language ""))
-  (wots (ssh-write-msgno 'userauth-banner)
-        (ssh-write-string msg)
-        (ssh-write-string language)))
-
 (define (ssh-write-banner ssh msg #!optional (language ""))
   (when (ssh-user ssh)
     (error "cannot write banner message after authentication is complete"))
