@@ -131,6 +131,26 @@
 
 ;; ====================
 
+(define-parsepair disconnect
+  ((uint32 reason-code)
+   (string description)
+   (string language)))
+
+;; TODO: ignore
+;; TODO: unimplemented
+;; TODO: debug
+
+
+(define-parsepair service-request
+  ((string name)))
+
+(define-parsepair service-accept
+  ((string name)))
+
+;; TODO: kexinit
+
+(define-parsepair newkeys ())
+
 (define-parsepair kexdh-init
   ((string client-pk)))
 
@@ -139,18 +159,43 @@
    (string serverpk)
    (signpk signature)))
 
-(define-parsepair disconnect
-  ((uint32 reason-code)
-   (string description)
+;; https://tools.ietf.org/html/rfc4252#section-7
+(define-parsepair userauth-request
+  ((string user)
+   (string service)
+   (symbol method)
+   (cond [(eq? method 'publickey)
+          (boolean signature?)
+          (cond [(eq? signature? #f)
+                 (symbol algorithm)
+                 (string pk)]
+                [(eq? signature? #t)
+                 (symbol algorithm)
+                 (string pk)
+                 (string signature)])]
+         [(eq? method 'password)
+          (boolean renew?)
+          (cond [(eq? renew? #f)
+                 (string plaintext-password)]
+                [(eq? renew? #t)
+                 (string old-password)
+                 (string new-password)])]
+         [(eq? method 'none)])))
+
+(define-parsepair userauth-failure
+  ((list auths)
+   (boolean partial?)))
+
+(define-parsepair userauth-success ())
+
+(define-parsepair userauth-banner
+  ((string msg)
    (string language)))
 
-(define-parsepair service-request
-  ((string name)))
-
-(define-parsepair service-accept
-  ((string name)))
-
-(define-parsepair newkeys ())
+;; TODO: userauth-pk-ok
+;; TODO: global-request
+;; TODO: request-success
+;; TODO: request-failure
 
 (define-parsepair channel-open
   ((string channel-type)
@@ -158,7 +203,25 @@
    (uint32 window-size)
    (uint32 max-packet-size)))
 
-(define-parsepair channel-success
+(define-parsepair channel-open-confirmation
+  ((uint32 channel-recipient)
+   (uint32 channel-sender)
+   (uint32 ws)
+   (uint32 max-packet-size)))
+
+;; TODO: channel-open-failure
+;; TODO: channel-window-adjust
+
+(define-parsepair channel-data
+  ((uint32 cid)
+   (string data)))
+
+;; TODO: channel-extended-data
+
+(define-parsepair channel-eof
+  ((uint32 cid)))
+
+(define-parsepair channel-close
   ((uint32 cid)))
 
 ;; see https://tools.ietf.org/html/rfc4254#section-6.2
@@ -219,54 +282,10 @@
           ;;(string anything)
           ])))
 
-;; https://tools.ietf.org/html/rfc4252#section-7
-(define-parsepair userauth-request
-  ((string user)
-   (string service)
-   (symbol method)
-   (cond [(eq? method 'publickey)
-          (boolean signature?)
-          (cond [(eq? signature? #f)
-                 (symbol algorithm)
-                 (string pk)]
-                [(eq? signature? #t)
-                 (symbol algorithm)
-                 (string pk)
-                 (string signature)])]
-         [(eq? method 'password)
-          (boolean renew?)
-          (cond [(eq? renew? #f)
-                 (string plaintext-password)]
-                [(eq? renew? #t)
-                 (string old-password)
-                 (string new-password)])]
-         [(eq? method 'none)])))
-
-(define-parsepair userauth-success
-  ())
-
-(define-parsepair userauth-banner
-  ((string msg)
-   (string language)))
-
-(define-parsepair userauth-failure
-  ((list auths)
-   (boolean partial?)))
-
-(define-parsepair channel-open-confirmation
-  ((uint32 channel-recipient)
-   (uint32 channel-sender)
-   (uint32 ws)
-   (uint32 max-packet-size)))
-
-(define-parsepair channel-data
-  ((uint32 cid)
-   (string data)))
-
-(define-parsepair channel-eof
+(define-parsepair channel-success
   ((uint32 cid)))
 
-(define-parsepair channel-close
+(define-parsepair channel-failure
   ((uint32 cid)))
 
 ;; (parse-channel-eof "`\x00\x00\x00\x01")
