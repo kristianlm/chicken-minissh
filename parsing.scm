@@ -46,13 +46,17 @@
 ;; (wots (unparse '("guest" publickey) ((string username) (symbol authtype))))
 (define-syntax unparse
   (syntax-rules (cond)
-    ((_ x ()) (begin))
+    ((_ x ())
+     (unless (null? x)
+       (error "unparsing: too many arguments")))
 
     ((_ x ((cond matches ...)))
      (unparse-match x matches ...))
 
     ((_ x ((type name) rest ...))
      (let ((datum x))
+       (unless (pair? datum)
+         (error "unparsing: too few arguments" 'name))
        (let ((name (car datum)))
          ((syntax-prefix "ssh-write-" type) name)
          (unparse (cdr datum) (rest ...)))))))
