@@ -228,6 +228,9 @@
    (string description) ;; ISO-10646 UTF-8 [RFC3629]
    (string language)))  ;; RFC3066
 
+(define-parsepair channel-window-adjust
+  ((uint32 cid)
+   (uint32 increment))) ;; bytes to add
 
 (define-parsepair channel-data
   ((uint32 cid)

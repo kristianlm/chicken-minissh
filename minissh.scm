@@ -569,11 +569,7 @@
   (when (<= (ssh-channel-bytes/read ch) 0)
     (%ssh-channel-bytes/read-set!
      ch (+ (ssh-channel-bytes/read ch) increment))
-    (write-payload
-     ssh
-     (wots (ssh-write-msgno 'channel-window-adjust)
-           (ssh-write-uint32 cid)
-           (ssh-write-uint32 increment)))))
+    (unparse-channel-window-adjust ssh cid increment)))
 
 (define (handle-channel-eof ssh cid)
   ;; TODO: mark channel as "closed"?
