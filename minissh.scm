@@ -171,6 +171,9 @@
 (define (ssh-write-boolean n #!optional (op (current-output-port)))
   (write-byte (if n 1 0)))
 
+(define (ssh-write-blob16 blob #!optional (op (current-output-port)))
+  (display (blob->string blob) op))
+
 (define (ssh-write-msgno type #!optional (op (current-output-port)))
   (write-byte (payload-type->int type) op))
 
@@ -248,25 +251,6 @@
   (display padding)
   (when mac (display mac)))
 
-
-(define (kx-payload)
-  (display "\x14")           ;; SSH_MSG_KEXINIT
-  (display (read-string 16 (current-entropy-port)))
-
-  (ssh-write-list '("curve25519-sha256@libssh.org")) ;; kex_algorithms
-  (ssh-write-list '("ssh-ed25519")) ;; server_host_key_algorithms
-  (ssh-write-list '("chacha20-poly1305@openssh.com")) ;; encryption_algorithms_c->s
-  (ssh-write-list '("chacha20-poly1305@openssh.com")) ;; encryption_algorithms_s->c
-  (ssh-write-list '()) ;; mac_algorithms_client_to_server
-  (ssh-write-list '()) ;; mac_algorithms_server_to_client
-  (ssh-write-list '("none")) ;; compression_algorithms_client_to_server
-  (ssh-write-list '("none")) ;; compression_algorithms_server_to_client
-  (ssh-write-list '()) ;; languages_client_to_server
-  (ssh-write-list '()) ;; languages_server_to_client
-  (display "\x00") ;; first_kex_packet_follows
-  (display "\x00\x00\x00\x00") ;; reserved00
-  )
-
 (define (packet-payload packet)
   (define padding_length (s2u (substring packet 0 1)))
   ;;(print "padding is " padding_length " bytes")
@@ -293,6 +277,9 @@
 
 (define (ssh-read-boolean #!optional (ip (current-input-port)))
   (if (= 0 (read-byte)) #f #t))
+
+(define (ssh-read-blob16 #!optional (ip (current-input-port)))
+  (string->blob (read-string 16 ip)))
 
 (define (ssh-read-signpk #!optional (ip (current-input-port)))
   (define type "ssh-ed25519")
@@ -450,46 +437,23 @@
 
 ;; ==================== parsing
 
-(define (SSH_MSG_KEXINIT)
-
-  (define cookie (read-string 16)) ;; random bytes
-  (print "cookie: " (wots (write cookie)))
-
-  (define-syntax pprint
-    (syntax-rules ()
-      ((_ var)
-       (begin
-         (print 'var " (" (length var) ")")
-         (for-each (lambda (name) (print "  " (wots (write name)))) var)))))
-
-  (define kex_algorithms (ssh-read-list))
-  (define server_host_key_algorithms (ssh-read-list))
-  (define encryption_algorithms_client_to_server (ssh-read-list))
-  (define encryption_algorithms_server_to_client (ssh-read-list))
-  (define mac_algorithms_client_to_server (ssh-read-list))
-  (define mac_algorithms_server_to_client (ssh-read-list))
-  (define compression_algorithms_client_to_server (ssh-read-list))
-  (define compression_algorithms_server_to_client (ssh-read-list))
-  (define languages_client_to_server (ssh-read-list))
-  (define languages_server_to_client (ssh-read-list))
-
-  (define first_kex_packet_follows (read-byte))
-  (define reserved00 (s2u (read-string 4)))
-  (assert (= 0 reserved00))
-
-  (pprint kex_algorithms)
-  (pprint server_host_key_algorithms)
-  (pprint encryption_algorithms_client_to_server)
-  (pprint encryption_algorithms_server_to_client)
-  (pprint mac_algorithms_client_to_server)
-  (pprint mac_algorithms_server_to_client)
-  (pprint compression_algorithms_client_to_server)
-  (pprint compression_algorithms_server_to_client)
-  (pprint languages_client_to_server)
-  (pprint languages_server_to_client)
-  (print "first_kex_packet_follows: " first_kex_packet_follows)
-
-  )
+;; because these
+(define (unparse-kexinit*)
+  (unparse-kexinit
+   #f
+   (string->blob (read-string 16 (current-entropy-port)))
+   '("curve25519-sha256@libssh.org")  ;; kex_algorithms
+   '("ssh-ed25519")                   ;; server_host_key_algorithms
+   '("chacha20-poly1305@openssh.com") ;; encryption_algorithms_c->s
+   '("chacha20-poly1305@openssh.com") ;; encryption_algorithms_s->c
+   '()       ;; mac_algorithms_client_to_server
+   '()       ;; mac_algorithms_server_to_client
+   '("none") ;; compression_algorithms_client_to_server
+   '("none") ;; compression_algorithms_server_to_client
+   '()       ;; languages_client_to_server
+   '()       ;; languages_server_to_client
+   #f        ;; first_kex_packet_follows
+   0))       ;; reserved00
 
 
 ;; kex/read is an optional string representing the received KEXINIT
@@ -500,7 +464,7 @@
                (ssh-hello/client ssh))
     (error "run-protocol-exchange not run"))
 
-  (define kex/write (wots (kx-payload)))
+  (define kex/write (unparse-kexinit*))
   (write-payload ssh kex/write)
 
   (unless kex/read

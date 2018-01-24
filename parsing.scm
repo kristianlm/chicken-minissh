@@ -147,7 +147,20 @@
 (define-parsepair service-accept
   ((string name)))
 
-;; TODO: kexinit
+(define-parsepair kexinit
+  ((blob16 cookie)
+   (list kex_algorithms)
+   (list server_host_key_algorithms)
+   (list encryption_algorithms_c->s)
+   (list encryption_algorithms_s->c)
+   (list mac_algorithms_client_to_server)
+   (list mac_algorithms_server_to_client)
+   (list compression_algorithms_client_to_server)
+   (list compression_algorithms_server_to_client)
+   (list languages_client_to_server)
+   (list languages_server_to_client)
+   (boolean first_kex_packet_follows)
+   (uint32 reserved00)))
 
 (define-parsepair newkeys ())
 
