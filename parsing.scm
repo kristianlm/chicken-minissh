@@ -76,6 +76,28 @@
          (,(r 'define) ,parser-name   ,parser)
          (,(r 'define) ,unparser-name ,unparser))))))
 
+;; (parse-spec->argumentnames '((string name) (cond [#t])))
+(define (parse-spec->argumentnames pspec)
+  (let loop ((pspec pspec)
+             (res '()))
+    (if (pair? pspec)
+        (let ((spec (car pspec)))
+          (if (eq? (car spec) 'cond)
+              (append (reverse res) 'rest)
+              (loop (cdr pspec) (cons (cadr (car pspec)) res))))
+        (reverse res))))
+
+;; produce informative procedure descriptions.
+;; try this:
+;; (procedure-decorate (lambda () #f) '(foo bar . rest))
+;; => #<procedure (unparse-x bar . rest)>
+(define (procedure-decorate proc lst)
+  (##sys#decorate-lambda
+   proc ##sys#lambda-info?
+   (lambda (proc i)
+     (##sys#setslot proc i (##sys#make-lambda-info (wots (write lst))))
+     proc)))
+
 ;; define parser and unparser and include payload-type
 (define-syntax define-parsepair
   (syntax-rules ()
@@ -86,13 +108,14 @@
          (wifs payload
                (cons (ssh-read-msgno (quote type))
                      (parse pspec))))
-       (lambda (msg)
-         (unless (eq? 'type (car msg))
-           (error "unparsing: tag mismatch (expected, actual)"
-                  'type (car msg)))
-         (wots
-          (ssh-write-msgno (quote type))
-          (unparse (cdr msg) pspec)))))))
+
+       (procedure-decorate
+        (lambda msg
+          (wots
+           (ssh-write-msgno (quote type))
+           (unparse msg pspec)))
+        (cons (string->symbol (conc "unparse-" 'type))
+              (parse-spec->argumentnames 'pspec)))))))
 
 ;; ====================
 
