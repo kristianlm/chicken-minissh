@@ -2,29 +2,39 @@
 
 
 (test
- "simple parse -> unparse"
+ "channel-data: simple parse -> unparse"
  `(channel-data 1 "hei")
- (parse-channel-data (unparse-channel-data `(channel-data 1 "hei"))))
+ (parse-channel-data (unparse-channel-data #f 1 "hei")))
 
 (test
- "unparse-channel-data test"
+ "channel-data: unparse"
  "\x5E\x00\x00\x00\x01\x00\x00\x00\x03hei"
- (unparse-channel-data `(channel-data 1 "hei")))
+ (unparse-channel-data #f 1 "hei"))
 
-(unparse-userauth-request
- '(userauth-request "username" "session" publickey #t ssh***-ed25519 "b" "a"))
+(test
+ "userauth-request: unparse"
+ "2\x00\x00\x00\busername\x00\x00\x00\asession\x00\x00\x00\tpublickey\x01\x00\x00\x00\x0essh***-ed25519\x00\x00\x00\x01b\x00\x00\x00\x01a"
+ (unparse-userauth-request
+  #f "username" "session" 'publickey
+  #t 'ssh***-ed25519 "b" "a"))
 
-(test `(channel-open "session" 1 2 3)
-      (parse-channel-open "Z\x00\x00\x00\asession\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x03"))
+(test
+ "channel-open: parse"
+ `(channel-open "session" 1 2 3)
+ (parse-channel-open "Z\x00\x00\x00\asession\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x03"))
 
-(test `(channel-request 1 exec #t "test")
-      (parse-channel-request "b\x00\x00\x00\x01\x00\x00\x00\x04exec\x01\x00\x00\x00\x04test"))
+(test
+ "channel-request: parse"
+ `(channel-request 1 exec #t "test")
+ (parse-channel-request "b\x00\x00\x00\x01\x00\x00\x00\x04exec\x01\x00\x00\x00\x04test"))
 
-(test `(userauth-request "tst" "ssh-connection" none)
+(test
+ "userauth-request: parse->unparse"
+ `(userauth-request "tst" "ssh-connection" none)
       (parse-userauth-request "2\x00\x00\x00\x03tst\x00\x00\x00\x0essh-connection\x00\x00\x00\x04none"))
 
 (test
- "publickey (no signature)"
+ "userauth-request: parse publickey (no signature)"
  `(userauth-request "tst" "ssh-connection" publickey #f ssh-ed25519
                     ,(blob->string #${0000000b7373682d656432353531390000002087c22ef3cd
                                       43b130429c2f30d364338257ee2c8a152ae4116d2fae3c16
@@ -33,7 +43,7 @@
   "2\x00\x00\x00\x03tst\x00\x00\x00\x0essh-connection\x00\x00\x00\tpublickey\x00\x00\x00\x00\vssh-ed25519\x00\x00\x003\x00\x00\x00\vssh-ed25519\x00\x00\x00 \207\302.\363\315C\2610B\234/0\323d3\202W\356,\212\x15*\344\x11m/\256<\x16S\255\310"))
 
 (test
- "publickey (with signature)"
+ "userauth-request: parse publickey (with signature)"
  `(userauth-request "heisann" "ssh-connection" publickey #t ssh-ed25519
                     "\x00\x00\x00\vssh-ed25519\x00\x00\x00 \207\302.\363\315C\2610B\234/0\323d3\202W\356,\212\x15*\344\x11m/\256<\x16S\255\310"
                     "\x00\x00\x00\vssh-ed25519\x00\x00\x00@\3009\200i\x1a\244\271?J\372\346\"NB\217\242\265\254\232\257\360R\374B\x1a\356d\230\236\x19\2469~Y\x0e\315e\353\321\357\376|\354\x0f\354\331q\353Kz\327 64\265m\245\230\363=?\352\304\x00")
@@ -48,7 +58,7 @@
                    6da598f33d3feac400})))
 
 (test
- "userauth-request password"
+ "userauth-request: parse password"
  `(userauth-request "tst" "ssh-connection" password #f "3777")
  (parse-userauth-request "2\x00\x00\x00\x03tst\x00\x00\x00\x0essh-connection\x00\x00\x00\bpassword\x00\x00\x00\x00\x043777"))
 
