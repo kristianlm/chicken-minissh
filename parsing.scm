@@ -222,14 +222,21 @@
    (uint32 ws)
    (uint32 max-packet-size)))
 
-;; TODO: channel-open-failure
-;; TODO: channel-window-adjust
+(define-parsepair channel-open-failure
+  ((uint32 cid)
+   (uint32 reason)
+   (string description) ;; ISO-10646 UTF-8 [RFC3629]
+   (string language)))  ;; RFC3066
+
 
 (define-parsepair channel-data
   ((uint32 cid)
    (string data)))
 
-;; TODO: channel-extended-data
+(define-parsepair channel-extended-data
+  ((uint32 cid)
+   (uint32 data-type) ;; 1 for stderr
+   (string data)))
 
 (define-parsepair channel-eof
   ((uint32 cid)))

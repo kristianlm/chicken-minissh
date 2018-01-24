@@ -582,14 +582,19 @@
 (define (handle-channel-request ssh cid type want-reply? . rest)
   (unparse-channel-success ssh cid))
 
-(define (ssh-channel-write ch str)
+(define (ssh-channel-write ch str #!optional stderr?)
   (assert (string? str))
   (define len (string-length str))
   (when (< (ssh-channel-bytes/write ch) len)
     (print "TODO: handle wait for window adjust"))
-  (unparse-channel-data (ssh-channel-ssh ch)
-                        (ssh-channel-cid ch)
-                        str)
+  (if stderr?
+      (unparse-channel-extended-data (ssh-channel-ssh ch)
+                                     (ssh-channel-cid ch)
+                                     1
+                                     str)
+      (unparse-channel-data (ssh-channel-ssh ch)
+                            (ssh-channel-cid ch)
+                            str))
   (%ssh-channel-bytes/write-set!
    ch (- (ssh-channel-bytes/write ch) len)))
 
