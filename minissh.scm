@@ -732,12 +732,6 @@
 
   (%ssh-hello/read-set! ssh (read-protocol-exchange (ssh-ip ssh))))
 
-
-(define (ssh-write-banner ssh msg #!optional (language ""))
-  (when (ssh-user ssh)
-    (error "cannot write banner message after authentication is complete"))
-  (write-payload ssh (unparse-userauth-banner msg language)))
-
 ;; ==================== userauth ====================
 
 (define (pk->pkblob pk)

@@ -114,12 +114,14 @@
                      (parse pspec))))
 
        (procedure-decorate
-        (lambda msg
-          (wots
-           (ssh-write-msgno (quote type))
-           (unparse msg pspec)))
+        (lambda (ssh . arguments)
+          (let ((payload (wots
+                          (ssh-write-msgno (quote type))
+                          (unparse arguments pspec))))
+            (if ssh (write-payload ssh payload) payload)))
         (cons (string->symbol (conc "unparse-" 'type))
-              (parse-spec->argumentnames 'pspec)))))))
+              (cons 'ssh
+                    (parse-spec->argumentnames 'pspec))))))))
 
 ;; ====================
 
