@@ -125,6 +125,9 @@
 
 ;; ====================
 
+(define-parsepair kexdh-init
+  ((string client-pk)))
+
 (define-parsepair kexdh-reply
   ((signpk ssh-hostkey-pk)
    (string serverpk)
@@ -138,11 +141,19 @@
 (define-parsepair service-request
   ((string name)))
 
+(define-parsepair service-accept
+  ((string name)))
+
+(define-parsepair newkeys ())
+
 (define-parsepair channel-open
   ((string channel-type)
    (uint32 sender-channel)
    (uint32 window-size)
    (uint32 max-packet-size)))
+
+(define-parsepair channel-success
+  ((uint32 cid)))
 
 ;; see https://tools.ietf.org/html/rfc4254#section-6.2
 (define-parsepair channel-request
@@ -225,9 +236,22 @@
                  (string new-password)])]
          [(eq? method 'none)])))
 
+(define-parsepair userauth-success
+  ())
+
 (define-parsepair userauth-banner
   ((string msg)
    (string language)))
+
+(define-parsepair userauth-failure
+  ((list auths)
+   (boolean partial?)))
+
+(define-parsepair channel-open-confirmation
+  ((uint32 channel-recipient)
+   (uint32 channel-sender)
+   (uint32 ws)
+   (uint32 max-packet-size)))
 
 (define-parsepair channel-data
   ((uint32 cid)

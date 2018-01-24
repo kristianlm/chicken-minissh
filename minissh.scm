@@ -533,12 +533,7 @@
     (define hash (xhash! client-pk server-pk sharedsecret (ssh-hostkey-pk ssh)))
     (define signature (substring ((ssh-hostkey-signer ssh) hash) 0 64))
 
-    (write-payload ssh
-                   (wots (ssh-write-msgno 'kexdh-reply)
-                         (ssh-write-signpk (ssh-hostkey-pk ssh))
-                         (ssh-write-string server-pk)
-                         (ssh-write-signpk signature)))
-
+    (unparse-kexdh-reply ssh (ssh-hostkey-pk ssh) server-pk signature)
     (values sharedsecret hash))
 
   (define (init-client)
@@ -546,9 +541,7 @@
     (define-values (client-sk client-pk)
       (make-curve25519-keypair))
 
-    (write-payload ssh
-                   (wots (ssh-write-msgno 'kexdh-init)
-                         (ssh-write-string client-pk)))
+    (unparse-kexdh-init ssh client-pk)
 
     (define kexdh-reply (payload-parse (read-payload/expect ssh 'kexdh-reply)))
     (match kexdh-reply
@@ -564,7 +557,7 @@
         (init-server)
         (init-client)))
 
-  (write-payload ssh (wots (ssh-write-msgno 'newkeys)))
+  (unparse-newkeys ssh)
   (read-payload/expect ssh 'newkeys)
 
   (define (kex-derive-key id)
@@ -590,14 +583,10 @@
 (define (handle-channel-open ssh type cid ws-remote max)
 
   (define ws-local #x000010)
+  (define max-packet-size #x800000)
 
-  (write-payload ssh
-                 (wots
-                  (ssh-write-msgno 'channel-open-confirmation)
-                  (ssh-write-uint32 cid)        ;; client cid
-                  (ssh-write-uint32 cid)        ;; server cid (same)
-                  (ssh-write-uint32 ws-local)   ;; window size
-                  (ssh-write-uint32 #x800000))) ;; max packet size
+  (unparse-channel-open-confirmation
+   ssh cid cid ws-local max-packet-size)
 
   (set! (ssh-channel ssh cid)
         (make-ssh-channel ssh type cid
@@ -627,26 +616,22 @@
   (void))
 
 (define (handle-channel-request ssh cid type want-reply? . rest)
-  (write-payload ssh
-                 (wots (ssh-write-msgno 'channel-success)
-                       (ssh-write-uint32 cid))))
+  (unparse-channel-success ssh cid))
 
 (define (ssh-channel-write ch str)
   (assert (string? str))
   (define len (string-length str))
   (when (< (ssh-channel-bytes/write ch) len)
     (print "TODO: handle wait for window adjust"))
-  (write-payload (ssh-channel-ssh ch)
-                 (wots (ssh-write-msgno 'channel-data)
-                       (ssh-write-uint32 (ssh-channel-cid ch))
-                       (ssh-write-string str)))
+  (unparse-channel-data (ssh-channel-ssh ch)
+                        (ssh-channel-cid ch)
+                        str)
   (%ssh-channel-bytes/write-set!
    ch (- (ssh-channel-bytes/write ch) len)))
 
 (define (ssh-channel-close ch)
-  (write-payload (ssh-channel-ssh ch)
-                 (wots (ssh-write-msgno 'channel-close)
-                       (ssh-write-uint32 (ssh-channel-cid ch)))))
+  (unparse-channel-close (ssh-channel-ssh ch)
+                         (ssh-channel-cid ch)))
 
 (define (ssh-setup-channel-handlers! ssh)
   ;; it's probably important to not allow this too early:
@@ -744,7 +729,10 @@
         (assert (equal? "ssh-ed25519" (ssh-read-string)))
         (ssh-read-string)))
 
+;; return the string/blob used by the client to sign
 (define (userauth-publickey-signature-blob ssh user pk)
+  ;; unparse-userauth-request does not work here beacuse this blob is
+  ;; special. see https://tools.ietf.org/html/rfc4252 page 10
   (wots
    (ssh-write-string (ssh-sid ssh)) ;; session identifier
    (ssh-write-msgno 'userauth-request)
@@ -769,16 +757,13 @@
     (define auths
       (append (if publickey '("publickey") '())
               (if password  '("password")  '())))
-    (write-payload ssh (wots (ssh-write-msgno 'userauth-failure)
-                             (ssh-write-list auths)
-                             (ssh-write-boolean partial?))))
+    (unparse-userauth-failure ssh auths partial?))
   (let loop ()
 
     (match (next-payload ssh)
 
       (('service-request "ssh-userauth")
-       (write-payload ssh (wots (ssh-write-msgno 'service-accept)
-                                (ssh-write-string "ssh-userauth")))
+       (unparse-service-accept ssh "ssh-userauth")
        (loop))
 
       ;; client asks if pk would be ok (since the actual signing is expensive)
@@ -799,7 +784,7 @@
                    (publickey user 'ssh-ed25519 pk #t))
               (if banner (banner user))
               (%ssh-user-set! ssh user)
-              (write-payload ssh (wots (ssh-write-msgno 'userauth-success))))
+              (unparse-userauth-success ssh))
              ;; success, no loop ^
              (else
               (write-payload ssh
@@ -812,7 +797,7 @@
        (cond ((and password (password user plaintext-password))
               (if banner (banner user))
               (%ssh-user-set! ssh user)
-              (write-payload ssh (wots (ssh-write-msgno 'userauth-success))))
+              (unparse-userauth-success ssh))
              ;; success, no loop ^
              (else
               (fail!)
