@@ -1,15 +1,13 @@
 (use tcp srfi-18 srfi-69 srfi-13 ports
      (only tweetnacl asymmetric-box-secretkeybytes current-entropy-port
            asymmetric-sign asymmetric-verify
-           symmetric-verify symmetric-sign)
+           symmetric-verify symmetric-sign scalarmult*)
      (only sha2 sha256-primitive)
      (only message-digest message-digest-string)
      (only matchable match)
      (only chacha20 chacha-iv! chacha-encrypt! make-chacha)
      (only data-structures conc intersperse rassoc string-split)
      (only extras read-string read-line read-byte write-byte))
-
-(include "scalarmult.scm") ;; <-- get scalarmult* from tweetnacl?
 
 (define-record-type ssh
   (%make-ssh server?
