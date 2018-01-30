@@ -33,6 +33,12 @@
         (('channel-request cid 'exec reply? "test")
          (ssh-channel-write (ssh-channel ssh cid)
                             "seems to be working.\n"))
+
+        (('channel-request cid 'exec reply? "stderr")
+         (ssh-channel-write (ssh-channel ssh cid)
+                            "hello from stderr\n"
+                            #t))
+
         (('channel-request cid 'exec reply? command)
          (ssh-channel-write (ssh-channel ssh cid)
                             (conc "sorry, I don't want to run `" command "`\n"
