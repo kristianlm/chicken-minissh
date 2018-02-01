@@ -64,7 +64,7 @@
    (lambda (ssh cid val) (hash-table-set! (ssh-channels ssh) cid val))))
 
 (define-record-type ssh-channel
-  (%make-ssh-channel ssh type
+  (%make-ssh-channel ssh type ;; type is almost always "session"
                      cid ;; same id for sender and receiver
                      bytes/read bytes/write) ;; window sizes
   ;; TODO: field for max packet size
@@ -251,19 +251,23 @@
   (display padding)
   (when mac (display mac)))
 
+;; in SSH2 packets of the form:
+;;     length padding-length payload padding
+;; extract payload
 (define (packet-payload packet)
   (define padding_length (s2u (substring packet 0 1)))
-  ;;(print "padding is " padding_length " bytes")
   
   (define payload_end (- (string-length packet) padding_length))
   (substring packet 1 payload_end))
 
+;; look at one-byte header that determines payload time. this should
+;; be present in _all_ SSH packets.
+;; (payload-type "\x06")
+;; (payload-type "\xff")
 (define (payload-type payload)
   (let* ((t (char->integer (string-ref payload 0)))
          (pair (rassoc t *payload-types*)))
     (and pair (car pair))))
-
-;; (payload-type "\x06") (payload-type "\xff")
 
 (define (ssh-read-string #!optional (ip (current-input-port)))
   (define packet_length (s2u (read-string/check 4 ip)))
@@ -283,7 +287,7 @@
 
 (define (ssh-read-signpk #!optional (ip (current-input-port)))
   (define type "ssh-ed25519")
-  ;;(assert (= (string-length pk) 32))
+
   (wifs (ssh-read-string)
         (assert (equal? type (ssh-read-string)))
         (ssh-read-string)))
@@ -317,13 +321,12 @@
     (define ip (ssh-ip ssh))
     (define paklen* (read-string/check 4 ip))
     (define paklen (s2u (chacha-decrypt ssh chacha-header #${00000000 00000000} paklen*)))
-    ;;(print "paklen " paklen)
     (unless (< paklen (* 1024 64)) (error "paklen too big?" paklen))
     (define pak* (read-string/check paklen ip))
     (define mac  (read-string/check 16 ip))
     
     (define poly-key (string->blob (chacha-decrypt ssh chacha-main #${00000000 00000000} (make-string 32 #\null))))
-    ;; (print "poly-key " poly-key)
+
     (unless ((symmetric-verify poly-key) mac (conc paklen* pak*))
       (error "poly1305 signature failed (key,mac,content)"
              poly-key
@@ -331,7 +334,6 @@
              (string->blob (conc paklen* pak*))))
     
     (define pak (chacha-decrypt ssh chacha-main #${01000000 00000000} pak*))
-    ;;(print "pak: " (wots (write pak)))
 
     (packet-payload pak))
   
@@ -778,3 +780,4 @@
                        (conc "unexpected packet " (wots (write otherwise)))))
        (fail!)
        (loop)))))
+

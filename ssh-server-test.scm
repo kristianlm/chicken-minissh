@@ -44,6 +44,7 @@
                             (conc "sorry, I don't want to run `" command "`\n"
                                   "try `test` instead.\n"))
          (ssh-channel-close (ssh-channel ssh cid)))
+
         (('channel-request cid 'pty-req reply? term w h _ _ rest)
          (ssh-channel-write (ssh-channel ssh cid)
                             (conc "awww, " term " is my favorite.\r\n"
