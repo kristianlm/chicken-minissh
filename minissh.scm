@@ -646,7 +646,9 @@
                      (asymmetric-sign (string->blob server-host-key-secret))))
          (run-protocol-exchange ssh)
          (run-kex ssh)
-         (handler ssh))))
+         (handler ssh)
+         (close-input-port ip)
+         (close-output-port op))))
     (loop)))
 
 
