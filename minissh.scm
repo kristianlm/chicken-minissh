@@ -568,7 +568,9 @@
   (%ssh-channel-bytes/read-set!
    ch (- (ssh-channel-bytes/read ch) (string-length str)))
 
-  (when (<= (ssh-channel-bytes/read ch) 0)
+  ;; only 1MB left of window? give client more window space.
+  ;; TODO: make this customizable
+  (when (<= (ssh-channel-bytes/read ch) (* 1 1024 1024))
     (%ssh-channel-bytes/read-set!
      ch (+ (ssh-channel-bytes/read ch) increment))
     (unparse-channel-window-adjust ssh cid increment)))
