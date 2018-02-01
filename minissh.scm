@@ -9,6 +9,27 @@
      (only data-structures conc intersperse rassoc string-split)
      (only extras read-string read-line read-byte write-byte))
 
+;; grab hold of current-error-port now so we don't log into channels
+;; (and send it across the ssh session).
+(define ssh-log
+  (let ((cep (current-error-port)))
+   (lambda args
+     (with-output-to-port cep
+       (lambda () (apply print args))))))
+
+(define (ssh-log-recv ssh payload)
+  (ssh-log "ssh recv #" (ssh-seqnum/read ssh) ": " (payload-type payload)
+           " " (wots (write payload))))
+
+;; overrride with shorter version
+(define (ssh-log-recv ssh payload)
+  (ssh-log "ssh recv #" (ssh-seqnum/read ssh) ": " (payload-type payload)
+           " (" (string-length payload) " bytes)"))
+
+(define (ssh-log-send ssh payload)
+  (ssh-log "ssh send #" (ssh-seqnum/write ssh) ": " (payload-type payload)
+           " (" (string-length payload) " bytes)"))
+
 (define-record-type ssh
   (%make-ssh server?
              ip op
@@ -199,9 +220,7 @@
   (ssh-write-string (wots (payload-pad payload 8 4)) (ssh-op ssh)))
 
 (define (write-payload ssh payload)
-  (with-output-to-port (current-error-port)
-    (lambda () (print "==== SENDING #" (ssh-seqnum/write ssh) " <" (payload-type payload) "> "
-                 (wots (write payload)))))
+  (ssh-log-send ssh payload)
   ((ssh-payload-writer ssh) ssh payload)
   (%ssh-seqnum/write-set! ssh (+ 1 (ssh-seqnum/write ssh))))
 
@@ -341,15 +360,8 @@
 
 ;; like read-payload, but without kexinit handler
 (define (read-payload* ssh)
-
   (let ((payload ((ssh-payload-reader ssh) ssh)))
-    (with-output-to-port (current-error-port)
-      (lambda ()
-        (print "==== RECV #" (ssh-seqnum/read ssh)
-               " " (wots (write (payload-parse payload))) " ;; "
-               (wots (write (substring/shared
-                             payload
-                             0 (min 256 (string-length payload))))))))
+    (ssh-log-recv ssh payload)
     (%ssh-seqnum/read-set! ssh (+ 1 (ssh-seqnum/read ssh)))
     payload))
 
@@ -638,7 +650,6 @@
   (define ss (tcp-listen port))
   (let loop ()
     (receive (ip op) (tcp-accept ss)
-      (print "incoming: " ip " " op)
       (thread-start!
        (lambda ()
          (define ssh
