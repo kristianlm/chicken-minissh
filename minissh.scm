@@ -321,7 +321,7 @@
     (define ip (ssh-ip ssh))
     (define paklen* (read-string/check 4 ip))
     (define paklen (s2u (chacha-decrypt ssh chacha-header #${00000000 00000000} paklen*)))
-    (unless (< paklen (* 1024 64)) (error "paklen too big?" paklen))
+
     (define pak* (read-string/check paklen ip))
     (define mac  (read-string/check 16 ip))
     
