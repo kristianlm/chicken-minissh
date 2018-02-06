@@ -17,18 +17,18 @@
      (with-output-to-port cep
        (lambda () (apply print args))))))
 
-(define (ssh-log-recv ssh payload)
-  (ssh-log "ssh recv #" (ssh-seqnum/read ssh) ": " (payload-type payload)
-           " " (wots (write payload))))
-
 ;; overrride with shorter version
 (define (ssh-log-recv ssh payload)
   (ssh-log "ssh recv #" (ssh-seqnum/read ssh) ": " (payload-type payload)
-           " (" (string-length payload) " bytes)"))
+           " (" (string-length payload) " bytes)"
+           ;; " " (wots (write (payload-parse payload))) ;; uncomment for more juice
+           ))
 
 (define (ssh-log-send ssh payload)
   (ssh-log "ssh send #" (ssh-seqnum/write ssh) ": " (payload-type payload)
-           " (" (string-length payload) " bytes)"))
+           " (" (string-length payload) " bytes)"
+           ;; " " (wots (write (payload-parse payload))) ;; uncomment for more juice
+           ))
 
 (define-record-type ssh
   (%make-ssh server?
