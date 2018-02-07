@@ -1,6 +1,7 @@
-(use srfi-18 matchable minissh base64)
+(use srfi-18 matchable minissh base64 tweetnacl)
 
-;;(include "ssh.scm")
+;; /dev/urandom is cryptographically secure a while after boot
+(current-entropy-port (open-input-file "/dev/urandom"))
 
 (define (handle-client ssh)
   (eval `(set! ssh ',ssh)) ;; for debuggin
