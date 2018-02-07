@@ -1,7 +1,35 @@
-(use srfi-18 matchable minissh base64 tweetnacl)
+(use srfi-18 matchable minissh base64 tweetnacl nrepl)
 
 ;; /dev/urandom is cryptographically secure a while after boot
 (current-entropy-port (open-input-file "/dev/urandom"))
+
+;; current-input/output/error-port bound to ssh sessions here
+(define (handle-exec ssh cmd)
+  (cond ((equal? cmd "repl")
+         (print "OBS: needs latest git nrepl! see https://github.com/Adellica/chicken-nrepl")
+         (nrepl-loop))
+        ((equal? cmd "dump")
+         (let loop ()
+           (display ".")
+           (loop)))
+        ((equal? cmd "speed")
+         (define bytes 0)
+         (define start (current-milliseconds))
+         (let loop ()
+           (unless (string-null? (read-string 1024))
+             (set! bytes (+ bytes 1024))
+             (define elapsed (- (current-milliseconds) start))
+             (when (> elapsed 1000)
+               (print "speed: " (floor (/ bytes (/ elapsed 1000))) " bytes/s")
+               (set! bytes 0)
+               (set! start (current-milliseconds)))
+             (loop))))
+        ((equal? cmd "loop")
+         (let loop ()
+           (print "loop loop loop\r")
+           (thread-sleep! 1)
+           (loop)))
+        (else (print "unknown command `" cmd "`. try one of: repl dump speed loop"))))
 
 (define (handle-client ssh)
   (eval `(set! ssh ',ssh)) ;; for debuggin
@@ -22,39 +50,8 @@
    (lambda (user)
      (unparse-userauth-banner ssh (conc "Welcome, " user "\n") "")))
 
-  (ssh-setup-channel-handlers! ssh)
-
   (assert (ssh-user ssh)) ;; this is a good idea
-  (print "starting channel loop")
-  (let loop ()
-    (let* ((parsed (next-payload ssh)))
-      (match parsed
-        (('channel-data cid str)
-         (ssh-channel-write (ssh-channel ssh cid) (string-upcase str)))
-        (('channel-request cid 'exec reply? "test")
-         (ssh-channel-write (ssh-channel ssh cid)
-                            "seems to be working.\n"))
-
-        (('channel-request cid 'exec reply? "stderr")
-         (ssh-channel-write (ssh-channel ssh cid)
-                            "hello from stderr\n"
-                            #t))
-
-        (('channel-request cid 'exec reply? command)
-         (ssh-channel-write (ssh-channel ssh cid)
-                            (conc "sorry, I don't want to run `" command "`\n"
-                                  "try `test` instead.\n"))
-         (ssh-channel-close (ssh-channel ssh cid)))
-
-        (('channel-request cid 'pty-req reply? term w h _ _ rest)
-         (ssh-channel-write (ssh-channel ssh cid)
-                            (conc "awww, " term " is my favorite.\r\n"
-                                  "unfortunately, I can't find anything to support raw pty-mode\r\n"
-                                  "so things get really messy here.\r\n"
-                                  "using the arrow keys is fun.\r\n"
-                                  "exit ssh with <RET> ~ .\r\n")))
-        (else (print "unhandled " (wots (write parsed))))))
-    (loop)))
+  (run-channels ssh exec: handle-exec))
 
 (define server-thread
   (thread-start!

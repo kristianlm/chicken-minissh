@@ -558,72 +558,9 @@
 
 (include "parsing.scm")
 
-(define (handle-channel-open ssh type cid ws-remote max)
-
-  (define ws-local #x000010)
-  (define max-packet-size #x800000)
-
-  (unparse-channel-open-confirmation
-   ssh cid cid ws-local max-packet-size)
-
-  (set! (ssh-channel ssh cid)
-        (make-ssh-channel ssh type cid
-                          ws-local
-                          ws-remote)))
-
-(define (handle-channel-close ssh cid)
-  (hash-table-delete! (ssh-channels ssh) cid))
-
-(define (handle-channel-data ssh cid str #!optional (increment #x10000000))
-
-  (define ch (ssh-channel ssh cid))
-  (%ssh-channel-bytes/read-set!
-   ch (- (ssh-channel-bytes/read ch) (string-length str)))
-
-  ;; only 1MB left of window? give client more window space.
-  ;; TODO: make this customizable
-  (when (<= (ssh-channel-bytes/read ch) (* 1 1024 1024))
-    (%ssh-channel-bytes/read-set!
-     ch (+ (ssh-channel-bytes/read ch) increment))
-    (unparse-channel-window-adjust ssh cid increment)))
-
-(define (handle-channel-eof ssh cid)
-  ;; TODO: mark channel as "closed"?
-  (void))
-
-(define (handle-channel-request ssh cid type want-reply? . rest)
-  (unparse-channel-success ssh cid))
-
-(define (ssh-channel-write ch str #!optional stderr?)
-  (assert (string? str))
-  (define len (string-length str))
-  (when (< (ssh-channel-bytes/write ch) len)
-    (print "TODO: handle wait for window adjust"))
-  (if stderr?
-      (unparse-channel-extended-data (ssh-channel-ssh ch)
-                                     (ssh-channel-cid ch)
-                                     1
-                                     str)
-      (unparse-channel-data (ssh-channel-ssh ch)
-                            (ssh-channel-cid ch)
-                            str))
-  (%ssh-channel-bytes/write-set!
-   ch (- (ssh-channel-bytes/write ch) len)))
-
 (define (ssh-channel-close ch)
   (unparse-channel-close (ssh-channel-ssh ch)
                          (ssh-channel-cid ch)))
-
-(define (ssh-setup-channel-handlers! ssh)
-  ;; it's probably important to not allow this too early:
-  (assert (ssh-hello/server ssh))
-  (assert (ssh-hello/client ssh))
-  (assert (ssh-user ssh))
-  (set! (ssh-handler ssh 'channel-open)     handle-channel-open)
-  (set! (ssh-handler ssh 'channel-request)  handle-channel-request)
-  (set! (ssh-handler ssh 'channel-data)     handle-channel-data)
-  (set! (ssh-handler ssh 'channel-eof)      handle-channel-eof)
-  (set! (ssh-handler ssh 'channel-close)    handle-channel-close))
 
 (define (payload-parse payload)
   (cond ((hash-table-ref *payload-parsers* (payload-type payload) (lambda () #f)) =>
@@ -796,3 +733,4 @@
        (fail!)
        (loop)))))
 
+(include "channels.scm")
