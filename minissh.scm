@@ -591,8 +591,14 @@
          (define ssh
            (make-ssh #t
                      ip op
-                     server-host-key-public
-                     (asymmetric-sign (string->blob server-host-key-secret))))
+                     ;; obs: minissh API generally wants strings
+                     (if (blob? server-host-key-public)
+                         (blob->string server-host-key-public)
+                         server-host-key-public)
+                     ;; obs: tweetnacl API wants blobs
+                     (asymmetric-sign (if (blob? server-host-key-secret)
+                                          server-host-key-secret
+                                          (string->blob server-host-key-secret)))))
          (run-protocol-exchange ssh)
          (run-kex ssh)
          (handler ssh)
