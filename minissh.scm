@@ -688,9 +688,7 @@
       (('userauth-request user "ssh-connection" 'publickey #f 'ssh-ed25519 pk)
        (cond ((and publickey (publickey user 'ssh-ed25519 pk #f))
               ;; tell client pk will be accepted if upcoming signature verifies
-              (write-payload ssh (wots (ssh-write-msgno 'userauth-pk-ok)
-                                       (ssh-write-string "ssh-ed25519")
-                                       (ssh-write-string pk)))
+              (unparse-userauth-pk-ok ssh "ssh-ed25519" pk)
               (loop))
              (else
               (fail!)

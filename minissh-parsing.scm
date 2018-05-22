@@ -205,7 +205,10 @@
   ((string msg)
    (string language)))
 
-;; TODO: userauth-pk-ok
+(define-parsepair userauth-pk-ok
+  ((string algorithm)
+   (string pk)))
+
 ;; TODO: global-request
 ;; TODO: request-success
 ;; TODO: request-failure
