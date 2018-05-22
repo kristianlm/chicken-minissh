@@ -40,7 +40,7 @@
    publickey:
    (lambda (user type pk signed?) ;; type is always ssh-ed25519 for now
      ;; the base64 part of ~/.ssh/id_ed25519.pub # `ssh-keygen -t ed25519` to make one
-     (equal? (base64-decode "AAAAC3NzaC1lZDI1NTE5AAAAIIfCLvPNQ7EwQpwvMNNkM4JX7iyKFSrkEW0vrjwWU63I")
+     (equal? (base64-decode "AAAAC3NzaC1lZDI1NTE5AAAAIJ5tybkMmIMqQ6uUEE/knJJHECWbQB1By9Oko3OQfv3T")
              pk))
    password:
    (lambda (user pw)
