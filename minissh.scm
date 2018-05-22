@@ -555,7 +555,7 @@
   (%ssh-payload-reader-set! ssh (make-payload-reader/chacha20 key-c2s-main key-c2s-header))
   (%ssh-payload-writer-set! ssh (make-payload-writer/chacha20 key-s2c-main key-s2c-header)))
 
-(include "parsing.scm")
+(include "minissh-parsing.scm")
 
 (define (ssh-channel-close ch)
   (unparse-channel-close (ssh-channel-ssh ch)
@@ -732,4 +732,4 @@
        (fail!)
        (loop)))))
 
-(include "channels.scm")
+(include "minissh-channels.scm")
