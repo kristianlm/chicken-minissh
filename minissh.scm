@@ -9,6 +9,16 @@
      (only data-structures conc intersperse rassoc string-split)
      (only extras read-string read-line read-byte write-byte))
 
+(define-syntax wots
+  (syntax-rules ()
+    ((_ body ...)
+     (with-output-to-string (lambda () body ...)))))
+
+(define-syntax wifs
+  (syntax-rules ()
+    ((_ str body ...)
+     (with-input-from-string str (lambda () body ...)))))
+
 ;; grab hold of current-error-port now so we don't log into channels
 ;; (and send it across the ssh session).
 (define ssh-log
@@ -149,16 +159,6 @@
 
 (define (sha256 str)
   (message-digest-string (sha256-primitive) str 'string))
-
-(define-syntax wots
-  (syntax-rules ()
-    ((_ body ...)
-     (with-output-to-string (lambda () body ...)))))
-
-(define-syntax wifs
-  (syntax-rules ()
-    ((_ str body ...)
-     (with-input-from-string str (lambda () body ...)))))
 
 (define (s2u s)
   (with-input-from-string s
