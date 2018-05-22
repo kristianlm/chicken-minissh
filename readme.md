@@ -29,11 +29,9 @@ You have to do this youself.
 # TODO
 
 - everywhere: nice API
-- tweetnacl: what to do with `scalarmult`?
 - tweetnacl: what to do with chacha20 extension?
 - make a ssh client too
 - transport: allow querying current encryption level
 - channels: respect window limits
-- channels: turn into input/output ports?
 - channels: pty handling?
 - find a faster current-entropy-port
