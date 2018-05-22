@@ -6,8 +6,8 @@
 ;; current-input/output/error-port bound to ssh sessions here
 (define (handle-exec ssh cmd)
   (cond ((equal? cmd "repl")
-         (print "OBS: needs latest git nrepl! see https://github.com/Adellica/chicken-nrepl")
-         (nrepl-loop))
+         (nrepl-loop)) ;; needs nrepl:0.5
+
         ((equal? cmd "dump")
          (let loop ()
            (display ".")
@@ -57,7 +57,7 @@
   (thread-start!
    (lambda ()
      (ssh-server-start
-      (base64-decode
+      (base64-decode ;; made with (make-asymmetric-sign-keypair)
        (conc "iWtDZXdl/UeN3q7sq2QWN2Ymv3ggveJRBvn1a+rMC5oz"
              "ziKH/lXlMW8jcNK4xeJLBrkSpSoLtxgz8nT24inEtQ=="))
       (base64-decode "M84ih/5V5TFvI3DSuMXiSwa5EqUqC7cYM/J09uIpxLU=")
