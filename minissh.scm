@@ -707,7 +707,8 @@
              (else
               (write-payload ssh
                              (unparse-userauth-banner
-                              (conc "signature verification failed. this is most likely a bug in this egg.\n")))
+                              (conc "signature verification failed. this is"
+                                    " most likely a bug in chicken-minissh.\n")))
               (fail!)
               (loop))))
       ;; password login
