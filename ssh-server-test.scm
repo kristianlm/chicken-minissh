@@ -56,9 +56,9 @@
 (define server-thread
   (thread-start!
    (lambda ()
+      ;; keys made with (make-asymmetric-sign-keypair)
      (ssh-server-start
-      (base64-decode ;; made with (make-asymmetric-sign-keypair)
-       (conc "iWtDZXdl/UeN3q7sq2QWN2Ymv3ggveJRBvn1a+rMC5oz"
-             "ziKH/lXlMW8jcNK4xeJLBrkSpSoLtxgz8nT24inEtQ=="))
       (base64-decode "M84ih/5V5TFvI3DSuMXiSwa5EqUqC7cYM/J09uIpxLU=")
+      (base64-decode (conc "iWtDZXdl/UeN3q7sq2QWN2Ymv3ggveJRBvn1a+rMC5oz"
+                           "ziKH/lXlMW8jcNK4xeJLBrkSpSoLtxgz8nT24inEtQ=="))
       (lambda (ssh) (handle-client ssh))))))

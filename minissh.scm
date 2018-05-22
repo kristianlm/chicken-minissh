@@ -579,8 +579,8 @@
     (handle-parsed-payload ssh parsed)
     parsed))
 
-(define (ssh-server-start server-host-key-secret
-                          server-host-key-public
+(define (ssh-server-start server-host-key-public
+                          server-host-key-secret
                           handler
                           #!key (port 22022))
   (define ss (tcp-listen port))
