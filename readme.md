@@ -29,7 +29,6 @@ You have to do this youself.
 # TODO
 
 - everywhere: nice API
-- tweetnacl: what to do with chacha20 extension?
 - make a ssh client too
 - transport: allow querying current encryption level
 - channels: respect window limits

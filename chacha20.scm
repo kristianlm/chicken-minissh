@@ -1,6 +1,6 @@
 (use srfi-4)
 
-(foreign-declare "#include \"chacha20-impl.h\"")
+(foreign-declare "#include \"chacha20-impl.c\"")
 
 (define-foreign-type chacha_ctx u32vector)
 

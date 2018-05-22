@@ -1,8 +1,4 @@
 ;; -*- scheme -*-
-(compile -s -J chacha20-impl.c chacha20-module.scm -o chacha20.so)
-(compile -s chacha20.import.scm)
-(install-extension 'chacha20 '("chacha20.so" "chacha20.import.so"))
-
 (compile -s  -J minissh-module.scm -o minissh.so)
 (compile -s minissh.import.scm)
 (install-extension 'minissh '("minissh.so" "minissh.import.so"))

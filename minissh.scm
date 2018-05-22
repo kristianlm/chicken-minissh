@@ -5,7 +5,6 @@
      (only sha2 sha256-primitive)
      (only message-digest message-digest-string)
      (only matchable match)
-     (only chacha20 chacha-iv! chacha-encrypt! make-chacha)
      (only data-structures conc intersperse rassoc string-split)
      (only extras read-string read-line read-byte write-byte))
 
