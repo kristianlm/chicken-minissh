@@ -1,5 +1,11 @@
 (use srfi-18 matchable minissh base64 tweetnacl nrepl)
 
+
+;; keys made with (make-asymmetric-sign-keypair)
+;; these would normally be kept safe.
+(define host-pk #${87ddfab6ed4c5da12496e79db431b69d9456b516910b67b13f022fd88ba59059})
+(define host-sk #${ba72291c15494ee02003b3c0bb0f8507a6a803850aa811d015b141a193e2447d87ddfab6ed4c5da12496e79db431b69d9456b516910b67b13f022fd88ba59059})
+
 ;; /dev/urandom is cryptographically secure a while after boot
 (current-entropy-port (open-input-file "/dev/urandom"))
 
@@ -56,9 +62,6 @@
 (define server-thread
   (thread-start!
    (lambda ()
-      ;; keys made with (make-asymmetric-sign-keypair)
      (ssh-server-start
-      (base64-decode "M84ih/5V5TFvI3DSuMXiSwa5EqUqC7cYM/J09uIpxLU=")
-      (base64-decode (conc "iWtDZXdl/UeN3q7sq2QWN2Ymv3ggveJRBvn1a+rMC5oz"
-                           "ziKH/lXlMW8jcNK4xeJLBrkSpSoLtxgz8nT24inEtQ=="))
+      host-pk host-sk
       (lambda (ssh) (handle-client ssh))))))
