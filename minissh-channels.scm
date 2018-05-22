@@ -136,8 +136,8 @@
        (loop))
 
       (('channel-close cid)
-       (handle-channel-close ssh cid)
        (gochan-close (hash-table-ref ht cid))
+       (handle-channel-close ssh cid)
        (loop))
 
       (('disconnect reason message language))
