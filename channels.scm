@@ -65,11 +65,11 @@
     (parameterize
         ((current-output-port
           (make-output-port
-           (lambda (str) (gochan-send chan-send (list cid str)))
+           (lambda (str) (gochan-send chan-send (list cid str #f)))
            (lambda ()    (gochan-send chan-send (list cid 'close)))))
          (current-error-port
           (make-output-port
-           (lambda (str) (gochan-send chan-send (list cid str 'stderr)))
+           (lambda (str) (gochan-send chan-send (list cid str #t)))
            (lambda ()    (gochan-send chan-send (list cid 'close)))))
          (current-input-port
           (let ((buffer "") (pos 0)) ;; buffer is #f for #!eof
@@ -102,10 +102,8 @@
             ((cid 'close)
              (unparse-channel-eof ssh cid)
              (unparse-channel-close ssh cid))
-            ((cid str 'stderr)
-             (ssh-channel-write (ssh-channel ssh cid) str #t))
-            ((cid str)
-             (ssh-channel-write (ssh-channel ssh cid) str)))
+            ((cid str stderr?)
+             (ssh-channel-write (ssh-channel ssh cid) str stderr?)))
           (loop)))))
 
   (tcp-read-timeout #f)
