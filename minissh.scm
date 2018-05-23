@@ -47,7 +47,6 @@
              hello/server   hello/client
              seqnum/read    seqnum/write
              payload-reader payload-writer
-             handlers
              channels)
   ssh?
   (server?        ssh-server?        %ssh-server-set!)
@@ -63,7 +62,6 @@
   (seqnum/write   ssh-seqnum/write   %ssh-seqnum/write-set!)
   (payload-reader ssh-payload-reader %ssh-payload-reader-set!)
   (payload-writer ssh-payload-writer %ssh-payload-writer-set!)
-  (handlers       ssh-handlers)
   (channels       ssh-channels))
 
 (define (make-ssh server? ip op host-pk signer)
@@ -80,13 +78,7 @@
              0 0   ;; sequence numbers
              read-payload/none
              write-payload/none
-             (make-hash-table)
              (make-hash-table)))
-
-(define ssh-handler
-  (getter-with-setter
-   (lambda (ssh pt)     (hash-table-ref  (ssh-handlers ssh) pt (lambda () #f)))
-   (lambda (ssh pt val) (hash-table-set! (ssh-handlers ssh) pt val))))
 
 (define ssh-channel
   (getter-with-setter
@@ -566,18 +558,9 @@
          (lambda (parser) (parser payload)))
         (else (list (payload-type payload) 'unparsed payload))))
 
-(define (handle-parsed-payload ssh parsed)
-  (cond ((ssh-handler ssh (car parsed)) =>
-           (lambda (handler)
-             (apply handler (cons ssh (cdr parsed)))
-             parsed))
-          (else parsed)))
-
 ;; TODO: find a good (but shorter) name for parsed-payload
 (define (next-payload ssh)
-  (let* ((parsed (payload-parse (read-payload ssh))))
-    (handle-parsed-payload ssh parsed)
-    parsed))
+  (payload-parse (read-payload ssh)))
 
 (define (ssh-server-start server-host-key-public
                           server-host-key-secret
