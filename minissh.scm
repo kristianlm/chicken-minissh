@@ -42,7 +42,7 @@
 (define-record-type ssh
   (%make-ssh server?
              ip op
-             hostkey-pk hostkey-signer ;; string and procedure
+             host-pk hostkey-signer ;; string and procedure
              sid user
              hello/server   hello/client
              seqnum/read    seqnum/write
@@ -53,7 +53,7 @@
   (server?        ssh-server?        %ssh-server-set!)
   (ip             ssh-ip)
   (op             ssh-op)
-  (hostkey-pk     ssh-hostkey-pk     %ssh-hostkey-pk-set!)
+  (host-pk        ssh-host-pk        %ssh-host-pk-set!)
   (hostkey-signer ssh-hostkey-signer %ssh-hostkey-signer-set!)
   (sid            ssh-sid            %ssh-sid-set!)
   (user           ssh-user           %ssh-user-set!)
@@ -66,15 +66,15 @@
   (handlers       ssh-handlers)
   (channels       ssh-channels))
 
-(define (make-ssh server? ip op hostkey-pk signer)
+(define (make-ssh server? ip op host-pk signer)
   (assert (input-port? ip))
   (assert (output-port? op))
   (when server?
-    (assert hostkey-pk)
+    (assert host-pk)
     (assert signer))
   (%make-ssh server?
              ip op
-             hostkey-pk signer
+             host-pk signer
              #f #f ;; sid user
              #f #f ;; hellos
              0 0   ;; sequence numbers
@@ -507,10 +507,10 @@
 
     (define-values (server-sk server-pk) (make-curve25519-keypair))
     (define sharedsecret (string->mpint (curve25519-dh server-sk client-pk)))
-    (define hash (xhash! client-pk server-pk sharedsecret (ssh-hostkey-pk ssh)))
+    (define hash (xhash! client-pk server-pk sharedsecret (ssh-host-pk ssh)))
     (define signature (substring ((ssh-hostkey-signer ssh) hash) 0 64))
 
-    (unparse-kexdh-reply ssh (ssh-hostkey-pk ssh) server-pk signature)
+    (unparse-kexdh-reply ssh (ssh-host-pk ssh) server-pk signature)
     (values sharedsecret hash))
 
   (define (init-client)
@@ -526,7 +526,7 @@
        (define sharedsecret (string->mpint (curve25519-dh client-sk server-pk)))
        (define hash (xhash! server-pk client-pk sharedsecret host-pk))
        ;; TODO: verify signature against server-host-key
-       (%ssh-hostkey-pk-set! ssh host-pk)
+       (%ssh-host-pk-set! ssh host-pk)
        (values sharedsecret hash))))
 
   (define-values (sharedsecret hash)

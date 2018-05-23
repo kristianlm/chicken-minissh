@@ -168,7 +168,7 @@
   ((string client-pk)))
 
 (define-parsepair kexdh-reply
-  ((signpk ssh-hostkey-pk)
+  ((signpk ssh-host-pk)
    (string serverpk)
    (signpk signature)))
 
