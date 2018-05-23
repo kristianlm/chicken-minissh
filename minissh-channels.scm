@@ -56,6 +56,9 @@
                       (exec (lambda (ssh cmd) (display "channel-request `exec` unhandled\r\n" (current-error-port))))
                       (shell (lambda (ssh) (display "channel-request `shell` unhandled (try invoking ssh client with arguments)\r\n" (current-error-port)))))
 
+  (unless (ssh-user ssh)
+    (error "run-channels called before userauth"))
+
   (define ht (make-hash-table))
   (define chan-send (gochan 0))
 
