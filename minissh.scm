@@ -64,6 +64,18 @@
   (payload-writer ssh-payload-writer %ssh-payload-writer-set!)
   (channels       ssh-channels))
 
+(define-record-printer ssh
+  (lambda (ssh p)
+    (display "#<ssh " p)
+    (display (ssh-user ssh) p)
+    (display "@" p)
+    (receive (local remote) (tcp-addresses (ssh-ip ssh))
+      (display remote p))
+    (display " (" p)
+    (display (hash-table-size (ssh-channels ssh)) p)
+    (display ")" p)
+    (display ">" p)))
+
 (define (make-ssh server? ip op host-pk signer)
   (assert (input-port? ip))
   (assert (output-port? op))
