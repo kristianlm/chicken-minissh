@@ -393,9 +393,10 @@
 (define (ssh-write-signpk pk)
   (define type "ssh-ed25519")
   ;;(assert (= (string-length pk) 32))
-  (ssh-write-string
-   (conc (u2s (string-length type)) type
-         (u2s (string-length pk))   pk)))
+  (let ((pk (if (blob? pk) (blob->string pk) pk)))
+    (ssh-write-string
+     (conc (u2s (string-length type)) type
+           (u2s (string-length pk))   pk))))
 
 (define (ssh-server/client ssh send recv)
   (if (ssh-server? ssh)
@@ -567,27 +568,27 @@
                           handler
                           #!key (port 22022))
   (define ss (tcp-listen port))
-  (let loop ()
-    (receive (ip op) (tcp-accept ss)
-      (thread-start!
-       (lambda ()
-         (define ssh
-           (make-ssh #t
-                     ip op
-                     ;; obs: minissh API generally wants strings
-                     (if (blob? server-host-key-public)
-                         (blob->string server-host-key-public)
-                         server-host-key-public)
-                     ;; obs: tweetnacl API wants blobs
-                     (asymmetric-sign (if (blob? server-host-key-secret)
-                                          server-host-key-secret
-                                          (string->blob server-host-key-secret)))))
-         (run-protocol-exchange ssh)
-         (run-kex ssh)
-         (handler ssh)
-         (close-input-port ip)
-         (close-output-port op))))
-    (loop)))
+  (let ((server-host-key-public (if (string? server-host-key-public)
+                                    (string->blob server-host-key-public)
+                                    server-host-key-public))
+        (server-host-key-secret (if (string? server-host-key-secret)
+                                    (string->blob server-host-key-secret)
+                                    server-host-key-secret)))
+    (let loop ()
+      (receive (ip op) (tcp-accept ss)
+        (thread-start!
+         (lambda ()
+           (define ssh
+             (make-ssh #t
+                       ip op
+                       server-host-key-public
+                       (asymmetric-sign server-host-key-secret)))
+           (run-protocol-exchange ssh)
+           (run-kex ssh)
+           (handler ssh)
+           (close-input-port ip)
+           (close-output-port op))))
+      (loop))))
 
 
 ;; ==================== protocol exchange ====================
