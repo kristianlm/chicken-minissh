@@ -590,16 +590,22 @@
       (receive (ip op) (tcp-accept ss)
         (thread-start!
          (lambda ()
-           (define ssh
-             (make-ssh #t
-                       ip op
-                       server-host-key-public
-                       (asymmetric-sign server-host-key-secret)))
-           (run-protocol-exchange ssh)
-           (run-kex ssh)
-           (handler ssh)
-           (close-input-port ip)
-           (close-output-port op))))
+           (handle-exceptions
+               e (begin
+                   (close-input-port ip)
+                   (close-output-port op)
+                   ((current-exception-handler) e))
+
+               (define ssh
+                 (make-ssh #t
+                           ip op
+                           server-host-key-public
+                           (asymmetric-sign server-host-key-secret)))
+               (run-protocol-exchange ssh)
+               (run-kex ssh)
+               (handler ssh)
+               (close-input-port ip)
+               (close-output-port op)))))
       (loop))))
 
 
