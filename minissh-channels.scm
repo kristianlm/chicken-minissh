@@ -2,6 +2,28 @@
 
 (use gochan)
 
+
+(define-record-type ssh-channel
+  (%make-ssh-channel ssh type ;; type is almost always "session"
+                     cid ;; same id for sender and receiver
+                     bytes/read bytes/write) ;; window sizes
+  ;; TODO: field for max packet size
+  ;; TODO: field for exit-status, exec command?
+  ssh-channel?
+  (ssh  ssh-channel-ssh)
+  (type ssh-channel-type)
+  (cid  ssh-channel-cid)
+  (bytes/read  ssh-channel-bytes/read  %ssh-channel-bytes/read-set!)
+  (bytes/write ssh-channel-bytes/write %ssh-channel-bytes/write-set!))
+
+(define (make-ssh-channel ssh type cid bytes/read bytes/write)
+  (assert (ssh? ssh))
+  (assert (string? type))
+  (assert (integer? cid))
+  (assert (integer? bytes/read))
+  (assert (integer? bytes/write))
+  (%make-ssh-channel ssh type cid bytes/read bytes/write))
+
 ;; add it to the ssh channel hash-table
 (define (handle-channel-open ssh type cid ws-remote max)
 
