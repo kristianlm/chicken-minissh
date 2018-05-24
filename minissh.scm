@@ -375,7 +375,6 @@
   (let ((payload (read-payload* ssh)))
     (if (eq? 'kexinit (payload-type payload))
         (begin
-          (print "============ RERUNNING KEXINITT ===============")
           (run-kex ssh payload)
           (read-payload ssh))
         payload)))
@@ -521,7 +520,6 @@
     (values sharedsecret hash))
 
   (define (init-client)
-    (print "RUNNING CLIENT KEX")
     (define-values (client-sk client-pk)
       (make-curve25519-keypair))
 
