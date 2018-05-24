@@ -62,4 +62,11 @@
  `(userauth-request "tst" "ssh-connection" password #f "3777")
  (parse-userauth-request "2\x00\x00\x00\x03tst\x00\x00\x00\x0essh-connection\x00\x00\x00\bpassword\x00\x00\x00\x00\x043777"))
 
+(test-group
+ "string->mpint"
+ (test "no leading zeros not negative" "\x01AB" (string->mpint "\x01AB"))
+ (test "no leading zeros negative" "\x00\x80AB" (string->mpint "\x80AB"))
+ (test "leading zeros not negative" "\x01AB" (string->mpint "\x00\x00\x01AB"))
+ (test "leading zeros negative" "\x00\x80AB" (string->mpint "\x00\x00\x00\x80AB"))
+ (test "1 leading zero negative" "\x00\x80AB" (string->mpint "\x00\x80AB")))
 

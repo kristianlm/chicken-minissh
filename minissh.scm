@@ -200,10 +200,14 @@
 
 ;; prefix "bignum" with 00 if first byte is negative (in two's
 ;; complement). mpints are described in https://tools.ietf.org/html/rfc4251#section-5
+;; and implemented in openssh's sshbuf_put_bignum2_bytes
 (define (string->mpint str)
-  (if (>= (char->integer (string-ref str 0)) 128)
-      (string-append "\x00" str)
-      str))
+  (let loop ((start 0))
+    (if (eq? #\null (string-ref str start))
+        (loop (+ 1 start))
+        (if (>= (char->integer (string-ref str start)) 128)
+            (string-append "\x00" (substring str start))
+            (substring str start)))))
 
 (define (write-mpint/positive str)
   (ssh-write-string (string->mpint str)))
