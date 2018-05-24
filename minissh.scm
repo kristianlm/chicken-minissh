@@ -444,7 +444,6 @@
 ;; derive a 64 byte key from curve25519 shared secret and exchange
 ;; hash. see https://tools.ietf.org/html/rfc4253#section-7.2
 (define (kex-derive-keys64 c K H session-id)
-  (assert (>= (string-length K) 32))
   (assert (= (string-length H) 32))
   (assert (= (string-length session-id) 32))
   (assert (= (string-length c) 1)) ;; make sure we're doing one of A B C D E F.
