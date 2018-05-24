@@ -562,10 +562,6 @@
 
 (include "minissh-parsing.scm")
 
-(define (ssh-channel-close ch)
-  (unparse-channel-close (ssh-channel-ssh ch)
-                         (ssh-channel-cid ch)))
-
 (define (payload-parse payload)
   (cond ((hash-table-ref *payload-parsers* (payload-type payload) (lambda () #f)) =>
          (lambda (parser) (parser payload)))

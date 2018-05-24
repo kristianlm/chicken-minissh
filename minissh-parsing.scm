@@ -209,7 +209,9 @@
   ((string algorithm)
    (string pk)))
 
-;; TODO: global-request
+(define-parsepair global-request
+  ((string name)
+   (boolean want-reply?)))
 ;; TODO: request-success
 ;; TODO: request-failure
 
