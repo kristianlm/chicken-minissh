@@ -47,6 +47,7 @@
              hello/server   hello/client
              seqnum/read    seqnum/write
              payload-reader payload-writer
+             kex-mutex
              channels)
   ssh?
   (server?        ssh-server?        %ssh-server-set!)
@@ -62,6 +63,7 @@
   (seqnum/write   ssh-seqnum/write   %ssh-seqnum/write-set!)
   (payload-reader ssh-payload-reader %ssh-payload-reader-set!)
   (payload-writer ssh-payload-writer %ssh-payload-writer-set!)
+  (kex-mutex      ssh-kex-mutex)
   (channels       ssh-channels))
 
 (define-record-printer ssh
@@ -90,7 +92,15 @@
              0 0   ;; sequence numbers
              read-payload/none
              write-payload/none
+             (make-mutex)
              (make-hash-table)))
+
+;; ssh-kex-mutex is used to block others to send ssh-packets in the
+;; middle of a kex session. write-payload is therefore protected by
+;; ssh-kex-mutex. but since write-payload is used inside the kex
+;; process itself, we need temporarily skip mutex protection inside
+;; the kex session.
+(define currently-kexing? (make-parameter #f))
 
 (define ssh-channel
   (getter-with-setter
@@ -201,10 +211,19 @@
 (define (write-payload/none ssh payload)
   (ssh-write-string (wots (payload-pad payload 8 4)) (ssh-op ssh)))
 
-(define (write-payload ssh payload)
+(define (write-payload/mutexless ssh payload)
   (ssh-log-send ssh payload)
   ((ssh-payload-writer ssh) ssh payload)
   (%ssh-seqnum/write-set! ssh (+ 1 (ssh-seqnum/write ssh))))
+
+(define (write-payload ssh payload)
+  (if (currently-kexing?)
+      (begin
+        (write-payload/mutexless ssh payload))
+      (begin
+        (mutex-lock! (ssh-kex-mutex ssh))
+        (write-payload/mutexless ssh payload)
+        (mutex-unlock! (ssh-kex-mutex ssh)))))
 
 (define (make-payload-writer/chacha20 key-main key-header)
   
@@ -455,7 +474,7 @@
 
 ;; kex/read is an optional string representing the received KEXINIT
 ;; payload (reads next packet if not specified).
-(define (run-kex ssh #!optional kex/read)
+(define (run-kex/mutexless ssh kex/read)
 
   (unless (and (ssh-hello/server ssh)
                (ssh-hello/client ssh))
@@ -538,6 +557,14 @@
 
   (%ssh-payload-reader-set! ssh (make-payload-reader/chacha20 key-c2s-main key-c2s-header))
   (%ssh-payload-writer-set! ssh (make-payload-writer/chacha20 key-s2c-main key-s2c-header)))
+
+(define (run-kex ssh #!optional kex/read)
+  (when (currently-kexing?)
+    (error "kexing already in progress"))
+  (mutex-lock! (ssh-kex-mutex ssh))
+  (parameterize ((currently-kexing? #t))
+    (run-kex/mutexless ssh kex/read))
+  (mutex-unlock! (ssh-kex-mutex ssh)))
 
 (include "minissh-parsing.scm")
 
