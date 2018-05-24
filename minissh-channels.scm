@@ -133,8 +133,7 @@
 
   (tcp-read-timeout #f)
   (let loop ()
-    (define msg (next-payload ssh))
-    (match msg
+    (match (next-payload ssh)
 
       (('channel-open type cid ws max-packet)
        (handle-channel-open ssh type cid ws max-packet)
@@ -167,5 +166,5 @@
 
       (('disconnect reason message language))
 
-      (else (ssh-log "IGNORING : " (wots (write msg)))
+      (else (ssh-log "IGNORING : " (wots (write else)))
             (loop)))))
