@@ -40,7 +40,23 @@ RFC4253 spec:
 > a SSH_MSG_KEXINIT message from the other party.
 
 this bug only happens when minissh initiates the first kexinit (which
-it never does unless you do `run-kex` manually).
+it never does unless you do `run-kex` manually). you can also
+inititate a kex manually with `(kexinit-start ssh)`.
+
+## fix known bug: will never initiate key negitiation
+
+[RFC4253s9](https://tools.ietf.org/html/rfc4253#section-9) says:
+
+> It is RECOMMENDED that the keys be changed after each gigabyte of
+> transmitted data or after each hour of connection time, whichever
+> comes sooner.  However, since the re-exchange is a public key
+> operation, it requires a fair amount of processing power and should
+> not be performed too often.
+
+minissh will currently never initiate a key exchange (but will respond
+correctly to when the remote side initiates).
+
+## plus these things
 
 - everywhere: nice API
 - make a ssh client too
