@@ -56,11 +56,21 @@ inititate a kex manually with `(kexinit-start ssh)`.
 minissh will currently never initiate a key exchange (but will respond
 correctly to when the remote side initiates).
 
+## fix known bug: respect window limits
+
+if you run the dump example, you'll find the ssh client eventually
+prints out this:
+
+    channel 1: rcvd too much data 32768, win 0
+
+this is known and need to be implemented. output and error ports
+running under run-channel must block when their window-sizes aren't
+big enough.
+
 ## plus these things
 
 - everywhere: nice API
 - make a ssh client too
 - transport: allow querying current encryption level
-- channels: respect window limits
 - channels: pty handling?
 - find a faster current-entropy-port
