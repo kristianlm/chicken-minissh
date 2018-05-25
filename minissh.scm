@@ -707,16 +707,18 @@
       ;; login with pk and signature
       (('userauth-request user "ssh-connection" 'publickey #t 'ssh-ed25519 pk sign)
        (cond ((and publickey
-                   (userauth-publickey-verify ssh user pk sign)
+                   (or (userauth-publickey-verify ssh user pk sign)
+                       (begin
+                         (unparse-userauth-banner
+                          ssh (conc "signature verification failed. this is"
+                                    " most likely a bug in chicken-minissh.\n") "")
+                         #f))
                    (publickey user 'ssh-ed25519 pk #t))
               (if banner (banner user))
               (%ssh-user-set! ssh user)
               (unparse-userauth-success ssh))
              ;; success, no loop ^
              (else
-              (unparse-userauth-banner
-               ssh (conc "signature verification failed. this is"
-                         " most likely a bug in chicken-minissh.\n") "")
               (fail!)
               (loop))))
       ;; password login
