@@ -28,6 +28,20 @@ You have to do this youself.
 
 # TODO
 
+## fix known bug: `expected kexinit, got : "(channel-window-adjust 1 98310)"`
+
+Caused by us not following
+[this](https://tools.ietf.org/html/rfc4253#section-7.1) part of the
+RFC4253 spec:
+
+> Note, however, that during a key re-exchange, after sending a
+> SSH_MSG_KEXINIT message, each party MUST be prepared to process an
+> arbitrary number of messages that may be in-flight before receiving
+> a SSH_MSG_KEXINIT message from the other party.
+
+this bug only happens when minissh initiates the first kexinit (which
+it never does unless you do `run-kex` manually).
+
 - everywhere: nice API
 - make a ssh client too
 - transport: allow querying current encryption level
