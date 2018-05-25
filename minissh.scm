@@ -714,10 +714,9 @@
               (unparse-userauth-success ssh))
              ;; success, no loop ^
              (else
-              (write-payload ssh
-                             (unparse-userauth-banner
-                              (conc "signature verification failed. this is"
-                                    " most likely a bug in chicken-minissh.\n")))
+              (unparse-userauth-banner
+               ssh (conc "signature verification failed. this is"
+                         " most likely a bug in chicken-minissh.\n") "")
               (fail!)
               (loop))))
       ;; password login
@@ -736,9 +735,8 @@
        (loop))
 
       (otherwise
-       (write-payload ssh
-                      (unparse-userauth-banner
-                       (conc "unexpected packet " (wots (write otherwise)))))
+       (unparse-userauth-banner
+        ssh (conc "unexpected packet " (wots (write otherwise))) "")
        (fail!)
        (loop)))))
 
