@@ -1,0 +1,27 @@
+# test with:
+# docker build -f docker/Dockerfile.kex -t minissh/kex .
+# docker run --rm -it minissh/kex
+
+FROM alpine:3.7
+
+RUN apk update && apk add gcc chicken openssh
+
+RUN chicken-install "test" "tweetnacl" "setup-helper" "miscmacros" "check-errors" \
+    "iset" "regex" "make" "utf8" "string-utils" "blob-utils" "symbol-utils" "dsssl-utils" \
+    "message-digest" "sha2" "matchable" "gochan" "base64" "nrepl"
+
+RUN mkdir /root/.ssh && \
+    echo '[localhost]:22022 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIfd+rbtTF2hJJbnnbQxtp2UVrUWkQtnsT8CL9iLpZBZ' >> /root/.ssh/known_hosts
+
+RUN ssh-keygen -t ed25519 -f /root/.ssh/id_ed25519 && \
+    printf '#!/bin/sh\n \
+csi -s "/egg/minissh/example-servers/07-kex.scm" &\n\
+sleep 2 \n\
+ssh localhost -p 22022 kex < /dev/null\n\
+' > /usr/bin/minissh-test && \
+    chmod +x /usr/bin/minissh-test
+
+COPY . /egg/minissh
+RUN cd /egg/minissh && chicken-install -test
+
+CMD /usr/bin/minissh-test
