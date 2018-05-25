@@ -373,7 +373,7 @@
     (%ssh-seqnum/read-set! ssh (+ 1 (ssh-seqnum/read ssh)))
     payload))
 
-;; read the next packet from ssh and extract its payload
+;; read the next packet from ssh blockingly. handles kexinit.
 (define (read-payload ssh)
   (let ((payload (read-payload/nokexinit ssh)))
     (if (eq? 'kexinit (payload-type payload))
@@ -381,6 +381,19 @@
           (kexinit-respond ssh payload)
           (read-payload ssh))
         payload)))
+
+;; read the next packet from ssh nonblockingly. returns #f if no
+;; packet available. handles kexinit. assumes a complete ssh packet is
+;; available.
+(define (read-payload* ssh)
+  (if (char-ready? (ssh-ip ssh))
+      (let ((payload (read-payload/nokexinit ssh)))
+        (if (eq? 'kexinit (payload-type payload))
+            (begin
+              (kexinit-respond ssh payload)
+              (read-payload* ssh))
+            payload))
+      #f))
 
 (define (read-payload/expect ssh expected-payload-type)
   (let ((payload (read-payload ssh)))
