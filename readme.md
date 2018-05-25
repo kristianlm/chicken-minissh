@@ -52,6 +52,10 @@ this is known and need to be implemented. output and error ports
 running under run-channel must block when their window-sizes aren't
 big enough.
 
+## fix known bug: limit ssh packet sizes to 32k as per specification
+
+because `(display (make-string (* 1024 1024)))` fails, for example.
+
 ## plus these things
 
 - everywhere: nice API
