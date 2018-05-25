@@ -39,6 +39,10 @@
            ;; " " (wots (write (payload-parse payload))) ;; uncomment for more juice
            ))
 
+(define (ssh-log-ignore/parsed ssh parsed)
+  (ssh-log "ssh ignr #" (ssh-seqnum/write ssh) ": " (car parsed)
+           " " (wots (write parsed))))
+
 (define-record-type ssh
   (%make-ssh server?
              ip op
@@ -716,13 +720,19 @@
 ;; publickey must return true if a (user pk) login would be ok (can be called multiple times)
 ;; password must return true if (user password) loging would be ok
 ;; banner gets called after successful authenticaion, but before sending 'userauth-success
-(define (run-userauth ssh #!key publickey password banner)
+(define (run-userauth ssh
+                      #!key publickey password banner
+                      (unhandled
+                       (lambda (x continue)
+                         (ssh-log-ignore/parsed ssh x)
+                         (continue))))
 
   (define (fail! #!optional partial?)
     (define auths
       (append (if publickey '("publickey") '())
               (if password  '("password")  '())))
     (unparse-userauth-failure ssh auths partial?))
+
   (let loop ()
 
     (match (next-payload ssh)
@@ -772,10 +782,6 @@
        (fail!)
        (loop))
 
-      (otherwise
-       (unparse-userauth-banner
-        ssh (conc "unexpected packet " (wots (write otherwise))) "")
-       (fail!)
-       (loop)))))
+      (otherwise (unhandled otherwise loop)))))
 
 (include "minissh-channels.scm")
