@@ -86,7 +86,6 @@
 
   (define (with-channel-io cid thunk)
     (define chan (hash-table-ref ht cid))
-    (unless chan (error "invalid channel id" cid (hash-table-keys ht)))
     (parameterize
         ((current-output-port
           (make-output-port
