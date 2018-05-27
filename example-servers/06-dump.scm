@@ -17,6 +17,7 @@
                  exec:
                  (lambda (ssh cmd)
                    (define s (make-string (* 32 1024) #\.))
-                   (let loop ()
+                   (let loop ((n 1))
+                     (ssh-log "step " n)
                      (display s)
-                     (loop))))))
+                     (loop (+ 1 n)))))))
