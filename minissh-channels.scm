@@ -151,10 +151,14 @@
                    #!eof))
              (lambda () #t)
              void))))
-      (thunk)
-      ;; (close-output-port (current-output-port)) obs: only 1 close per channel
-      (close-output-port (current-error-port))))
-
+      (handle-exceptions
+          e (begin (close-output-port (current-output-port))
+                   (close-input-port (current-input-port))
+                   ((current-exception-handler) e))
+          (thunk)
+          (close-output-port (current-output-port))
+          ;; current-error-port same as current-output-port
+          (close-input-port (current-input-port)))))
 
   (tcp-read-timeout #f)
   (let loop ()
