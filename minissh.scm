@@ -24,7 +24,8 @@
   (let ((cep (current-error-port)))
    (lambda args
      (with-output-to-port cep
-       (lambda () (apply print args))))))
+       (lambda () (apply print (cons (thread-name (current-thread))
+                                (cons " " args))))))))
 
 ;; overrride with shorter version
 (define (ssh-log-recv ssh payload)
