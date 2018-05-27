@@ -574,8 +574,10 @@
   (%ssh-payload-writer-set! ssh (make-payload-writer/chacha20 key-s2c-main key-s2c-header)))
 
 (define (kexinit-respond ssh kexinit-payload/read)
+
   (unless (ssh-kexinit/sent ssh)
-    (error "internal error: kexinit/sent not present"))
+    ;; remote side initiated kexinit
+    (kexinit-start ssh))
 
   (parameterize ((currently-kexing? #t))
     (kexinit-respond/mutexless ssh kexinit-payload/read)
