@@ -1,4 +1,4 @@
-(use test minissh base64)
+(use test minissh base64 matchable)
 
 
 (test
@@ -70,6 +70,58 @@
  (test "leading zeros negative" "\x00\x80AB" (string->mpint "\x00\x00\x00\x80AB"))
  (test "1 leading zero negative" "\x00\x80AB" (string->mpint "\x00\x80AB")))
 
+;; custom pretend ssh session
+(define (incoming packets writer)
+  (%make-ssh #t 'ip 'op 'host-pk 'signer 'sid "user"
+             "hello server" "hello client" 0 0 ;; seqnums
+             (let ((packets packets)) ;; <-- reader
+               (lambda (a)
+                 (thread-sleep! 0.1)
+                 (when (eq? #f packets) (error 'eof))
+                 (let ((t (car packets)))
+                   (cond ((pair? (cdr packets))
+                          (set! (car packets) (cadr packets))
+                          (set! (cdr packets) (cddr packets)))
+                         (else (set! packets #f)))
+                   (t))))
+             writer
+             (make-mutex)   ;; kex/mutex
+             #f             ;; kex/sent
+             (make-hash-table)))
+
+(let* ((wait (lambda () (thread-yield!)))
+       (bytes 0)
+       (here 0)
+       (reader-test-done #f)
+       (adjust (lambda (bytes) (unparse-channel-window-adjust #f 1 bytes)))
+       (ssh
+        (incoming
+         (list (lambda () (unparse-channel-open #f "session" 1 4 1000))
+               (lambda () (unparse-channel-request #f 1 'exec #t "kex"))
+               (lambda () (wait) (test 1 here)(test 4 bytes) (adjust 1))
+               (lambda () (wait) (test 5 bytes) (adjust 1))
+               (lambda () (wait) (test 6 bytes) (adjust 1))
+               (lambda () (wait) (test 2 here) (test 7 bytes) (adjust 128))
+               (lambda () (wait) (test 3 here) (test 9 bytes)
+                  (set! reader-test-done #t)
+                  (unparse-disconnect #f 0 "test over" "")))
+         ;; discard written packets, but count bytes through cid 1:
+         (lambda (ssh x)
+           (match (payload-parse x)
+             (('channel-data 1 str)
+              (set! bytes (+ bytes (string-length str))))
+             (('channel-data cid str)
+              (error "unexpected cid" cid))
+             (else))))))
+
+  (print "============================================================")
+  (run-channels ssh
+                exec: (lambda (ssh cmd)
+                        (display "abc") (set! here 1)
+                        (display "def") (set! here 2)
+                        (display "ghi") (set! here 3)))
+
+  (test #t reader-test-done))
 
 (test-exit)
 

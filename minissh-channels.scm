@@ -6,6 +6,7 @@
 (define-record-type ssh-channel
   (%make-ssh-channel ssh type ;; type is almost always "session"
                      cid ;; same id for sender and receiver
+                     mutex cv
                      bytes/read bytes/write) ;; window sizes
   ;; TODO: field for max packet size
   ;; TODO: field for exit-status, exec command?
@@ -13,6 +14,8 @@
   (ssh  ssh-channel-ssh)
   (type ssh-channel-type)
   (cid  ssh-channel-cid)
+  (mutex ssh-channel-mutex)
+  (cv    ssh-channel-cv)
   (bytes/read  ssh-channel-bytes/read  %ssh-channel-bytes/read-set!)
   (bytes/write ssh-channel-bytes/write %ssh-channel-bytes/write-set!))
 
@@ -22,7 +25,9 @@
   (assert (integer? cid))
   (assert (integer? bytes/read))
   (assert (integer? bytes/write))
-  (%make-ssh-channel ssh type cid bytes/read bytes/write))
+  (%make-ssh-channel ssh type cid
+                     (make-mutex) (make-condition-variable)
+                     bytes/read bytes/write))
 
 ;; add it to the ssh channel hash-table
 (define (handle-channel-open ssh type cid ws-remote max)
@@ -44,6 +49,10 @@
 (define (handle-channel-data ssh cid str #!optional (increment #x10000000))
 
   (define ch (ssh-channel ssh cid))
+  (define m (ssh-channel-mutex ch))
+
+  (mutex-lock! m)
+
   (%ssh-channel-bytes/read-set!
    ch (- (ssh-channel-bytes/read ch) (string-length str)))
 
@@ -52,26 +61,45 @@
   (when (<= (ssh-channel-bytes/read ch) (* 1 1024 1024))
     (%ssh-channel-bytes/read-set!
      ch (+ (ssh-channel-bytes/read ch) increment))
-    (unparse-channel-window-adjust ssh cid increment)))
+    (unparse-channel-window-adjust ssh cid increment))
+
+  (mutex-unlock! m))
 
 ;; ====================
 
 (define (ssh-channel-write ch str #!optional stderr?)
   (assert (string? str))
-  (define len (string-length str))
-  (when (< (ssh-channel-bytes/write ch) len)
-    ;;(print "TODO: handle wait for window adjust")
-    )
-  (if stderr?
-      (unparse-channel-extended-data (ssh-channel-ssh ch)
-                                     (ssh-channel-cid ch)
-                                     1
-                                     str)
-      (unparse-channel-data (ssh-channel-ssh ch)
-                            (ssh-channel-cid ch)
-                            str))
-  (%ssh-channel-bytes/write-set!
-   ch (- (ssh-channel-bytes/write ch) len)))
+
+  (define (send! str)
+    (if stderr?
+        (unparse-channel-extended-data (ssh-channel-ssh ch)
+                                       (ssh-channel-cid ch)
+                                       1
+                                       str)
+        (unparse-channel-data (ssh-channel-ssh ch)
+                              (ssh-channel-cid ch)
+                              str))
+
+    (%ssh-channel-bytes/write-set! ch (- (ssh-channel-bytes/write ch)
+                                         (string-length str))))
+  (define m (ssh-channel-mutex ch))
+
+  (let loop ((str str))
+    (mutex-lock! m)
+    (if (> (ssh-channel-bytes/write ch) (string-length str))
+        (if (string-null? str)
+            (mutex-unlock! m)
+            (begin (send! str) ;; room for everything
+                   (mutex-unlock! m)))
+        (if (> (ssh-channel-bytes/write ch) 0)
+            ;; room for a little bit
+            (let ((room (ssh-channel-bytes/write ch)))
+              (send! (substring str 0 room))
+              (mutex-unlock! m)
+              (loop (substring str room)))
+            (begin ;; room for nothing, wait
+              (mutex-unlock! m (ssh-channel-cv ch))
+              (loop str))))))
 
 
 (define (run-channels ssh #!key
@@ -85,19 +113,24 @@
     (error "run-channels called before userauth"))
 
   (define ht (make-hash-table))
-  (define chan-send (gochan 0))
 
   (define (with-channel-io cid thunk)
     (define chan (hash-table-ref ht cid))
     (parameterize
         ((current-output-port
           (make-output-port
-           (lambda (str) (gochan-send chan-send (list cid str #f)))
-           (lambda ()    (gochan-send chan-send (list cid 'close)))))
+           (lambda (str) (ssh-channel-write (ssh-channel ssh cid) str #f))
+           (lambda ()
+             (unparse-channel-eof ssh cid)
+             (unparse-channel-close ssh cid))))
+
          (current-error-port
           (make-output-port
-           (lambda (str) (gochan-send chan-send (list cid str #t)))
-           (lambda ()    (gochan-send chan-send (list cid 'close)))))
+           (lambda (str) (ssh-channel-write (ssh-channel ssh cid) str #t))
+           (lambda ()
+             (unparse-channel-eof ssh cid)
+             (unparse-channel-close ssh cid))))
+
          (current-input-port
           (let ((buffer "") (pos 0)) ;; buffer is #f for #!eof
             (make-input-port
@@ -122,16 +155,6 @@
       ;; (close-output-port (current-output-port)) obs: only 1 close per channel
       (close-output-port (current-error-port))))
 
-  (go (let loop ()
-        (gochan-select
-         ((chan-send -> msg)
-          (match msg
-            ((cid 'close)
-             (unparse-channel-eof ssh cid)
-             (unparse-channel-close ssh cid))
-            ((cid str stderr?)
-             (ssh-channel-write (ssh-channel ssh cid) str stderr?)))
-          (loop)))))
 
   (tcp-read-timeout #f)
   (let loop ()
@@ -165,6 +188,22 @@
        (gochan-close (hash-table-ref ht cid))
        (handle-channel-close ssh cid)
        (loop))
+
+      (('channel-window-adjust cid increment)
+       (let ((ch (ssh-channel ssh cid)))
+
+         (define m (ssh-channel-mutex ch))
+         (mutex-lock! m)
+
+         (%ssh-channel-bytes/write-set!
+          ch (+ (ssh-channel-bytes/write ch) increment))
+
+         (condition-variable-broadcast!
+          (ssh-channel-cv (ssh-channel ssh cid)))
+
+         (mutex-unlock! m)
+
+         (loop)))
 
       (('disconnect reason message language))
 

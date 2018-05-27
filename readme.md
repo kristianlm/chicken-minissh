@@ -41,17 +41,6 @@ You have to do this youself.
 minissh will currently never initiate a key exchange (but will respond
 correctly to when the remote side initiates).
 
-## fix known bug: respect window limits
-
-if you run the dump example, you'll find the ssh client eventually
-prints out this:
-
-    channel 1: rcvd too much data 32768, win 0
-
-this is known and need to be implemented. output and error ports
-running under run-channel must block when their window-sizes aren't
-big enough.
-
 ## fix known bug: limit ssh packet sizes to 32k as per specification
 
 because `(display (make-string (* 1024 1024)))` fails, for example.
