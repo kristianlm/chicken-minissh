@@ -70,3 +70,6 @@
  (test "leading zeros negative" "\x00\x80AB" (string->mpint "\x00\x00\x00\x80AB"))
  (test "1 leading zero negative" "\x00\x80AB" (string->mpint "\x00\x80AB")))
 
+
+(test-exit)
+
