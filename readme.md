@@ -45,6 +45,12 @@ correctly to when the remote side initiates).
 
 because `(display (make-string (* 1024 1024)))` fails, for example.
 
+## feature request: make `kexinit-start` less hard to use
+
+currently, it is not safe to call `kexinit-start` and `write-payload`
+in the same thread. this means `run-channels` can never call
+`kexinit-start`, for example.
+
 ## plus these things
 
 - everywhere: nice API
