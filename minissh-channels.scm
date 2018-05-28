@@ -67,7 +67,7 @@
 
 ;; ====================
 
-(define (ssh-channel-write ch str #!optional stderr?)
+(define (ssh-channel-write ch str stderr?)
   (assert (string? str))
 
   (define (send! str)
