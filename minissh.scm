@@ -5,7 +5,8 @@
      (only sha2 sha256-primitive)
      (only message-digest message-digest-string)
      (only matchable match)
-     (only data-structures conc intersperse rassoc string-split)
+     (only data-structures conc intersperse rassoc string-split
+           make-queue queue-add! queue-remove! queue-empty?)
      (only extras read-string read-line read-byte write-byte))
 
 (define-syntax wots
@@ -52,7 +53,8 @@
              hello/server   hello/client
              seqnum/read    seqnum/write
              payload-reader payload-writer
-             kex-mutex
+             queue
+             read-mutex write-mutex
              kexinit/sent
              channels)
   ssh?
@@ -69,7 +71,9 @@
   (seqnum/write   ssh-seqnum/write   %ssh-seqnum/write-set!)
   (payload-reader ssh-payload-reader %ssh-payload-reader-set!)
   (payload-writer ssh-payload-writer %ssh-payload-writer-set!)
-  (kex-mutex      ssh-kex-mutex)
+  (queue          ssh-queue)
+  (read-mutex     ssh-read-mutex)
+  (write-mutex    ssh-write-mutex)
   (kexinit/sent   ssh-kexinit/sent   %ssh-kexinit/sent-set!)
   (channels       ssh-channels))
 
@@ -100,7 +104,8 @@
              0 0   ;; sequence numbers
              read-payload/none
              write-payload/none
-             (make-mutex)
+             (make-queue)
+             (make-mutex) (make-mutex) ;; read write
              #f
              (make-hash-table)))
 
@@ -224,19 +229,83 @@
 (define (write-payload/none ssh payload)
   (ssh-write-string (wots (payload-pad payload 8 4)) (ssh-op ssh)))
 
+
+;; read-payload and write-payload API (hopefully thread safe)
+
+(define (%kexinit? payload)
+  (eq? 'kexinit (payload-type payload)))
+
 (define (write-payload/mutexless ssh payload)
   (ssh-log-send ssh payload)
   ((ssh-payload-writer ssh) ssh payload)
   (%ssh-seqnum/write-set! ssh (+ 1 (ssh-seqnum/write ssh))))
 
+;; like read-payload, but without kexinit handler
+(define (read-payload/mutexless ssh)
+  (let ((payload ((ssh-payload-reader ssh) ssh)))
+    (ssh-log-recv ssh payload)
+    (%ssh-seqnum/read-set! ssh (+ 1 (ssh-seqnum/read ssh)))
+    payload))
+
+(define (read-payload/mutex ssh)
+  (mutex-lock! (ssh-read-mutex ssh))
+  (if (queue-empty? (ssh-queue ssh))
+      ;; read from network
+      (let ((p (read-payload/mutexless ssh)))
+        (if (%kexinit? p)
+            (begin
+              (kexinit-respond ssh p)
+              (mutex-unlock! (ssh-read-mutex ssh))
+              (read-payload/mutex ssh))
+            (begin
+              (mutex-unlock! (ssh-read-mutex ssh))
+              p)))
+      ;; get packet from queue (some sender was looking for a kexinit)
+      (let ((r (queue-remove! (ssh-queue ssh))))
+        (mutex-unlock! (ssh-read-mutex ssh))
+        r)))
+
+(define (write-payload/mutex ssh p)
+  (mutex-lock! (ssh-write-mutex ssh))
+  (if (ssh-kexinit/sent ssh)
+      (begin
+        ;; allow other readers to poke at ssh-kexinit/sent
+        (mutex-unlock! (ssh-write-mutex ssh))
+
+        (mutex-lock! (ssh-read-mutex ssh))
+        (let ((incoming (read-payload/mutexless ssh)))
+          (if (%kexinit? incoming)
+              (begin
+                (kexinit-respond ssh incoming)
+                (mutex-unlock! (ssh-read-mutex ssh))
+                (write-payload ssh p))
+              (begin
+                (queue-add! (ssh-queue ssh) incoming)
+                (mutex-unlock! (ssh-read-mutex ssh))
+                (write-payload ssh p)))))
+      (begin
+        (when (%kexinit? p)
+          (%ssh-kexinit/sent-set! ssh p))
+        (write-payload/mutexless ssh p)
+        (mutex-unlock! (ssh-write-mutex ssh)))))
+
+(define (read-payload ssh)
+  (if (currently-kexing?)
+      (read-payload/mutexless ssh)
+      (read-payload/mutex ssh)))
+
 (define (write-payload ssh payload)
   (if (currently-kexing?)
-      (begin
-        (write-payload/mutexless ssh payload))
-      (begin
-        (mutex-lock! (ssh-kex-mutex ssh))
-        (write-payload/mutexless ssh payload)
-        (mutex-unlock! (ssh-kex-mutex ssh)))))
+      (write-payload/mutexless ssh payload)
+      (write-payload/mutex ssh payload)))
+
+;; like read-payload, but error on unexpected payload type
+(define (read-payload/expect ssh expected-payload-type)
+  (let ((payload (read-payload ssh)))
+    (unless (eq? (payload-type payload) expected-payload-type)
+      (error (conc "expected " expected-payload-type  " got")
+             (payload-type payload) payload))
+    payload))
 
 (define (make-payload-writer/chacha20 key-main key-header)
   
@@ -372,41 +441,6 @@
   
   read-payload/chacha20)
 
-;; like read-payload, but without kexinit handler
-(define (read-payload/nokexinit ssh)
-  (let ((payload ((ssh-payload-reader ssh) ssh)))
-    (ssh-log-recv ssh payload)
-    (%ssh-seqnum/read-set! ssh (+ 1 (ssh-seqnum/read ssh)))
-    payload))
-
-;; read the next packet from ssh blockingly. handles kexinit.
-(define (read-payload ssh)
-  (let ((payload (read-payload/nokexinit ssh)))
-    (if (eq? 'kexinit (payload-type payload))
-        (begin
-          (kexinit-respond ssh payload)
-          (read-payload ssh))
-        payload)))
-
-;; read the next packet from ssh nonblockingly. returns #f if no
-;; packet available. handles kexinit. assumes a complete ssh packet is
-;; available.
-(define (read-payload* ssh)
-  (if (char-ready? (ssh-ip ssh))
-      (let ((payload (read-payload/nokexinit ssh)))
-        (if (eq? 'kexinit (payload-type payload))
-            (begin
-              (kexinit-respond ssh payload)
-              (read-payload* ssh))
-            payload))
-      #f))
-
-(define (read-payload/expect ssh expected-payload-type)
-  (let ((payload (read-payload ssh)))
-    (unless (eq? (payload-type payload) expected-payload-type)
-      (error (conc "expected " expected-payload-type  " got")
-             (payload-type payload) payload))
-    payload))
 
 (define (make-curve25519-keypair)
 
@@ -574,41 +608,27 @@
   (%ssh-payload-reader-set! ssh (make-payload-reader/chacha20 key-c2s-main key-c2s-header))
   (%ssh-payload-writer-set! ssh (make-payload-writer/chacha20 key-s2c-main key-s2c-header)))
 
+;; must be called while holding _both_ ssh-read-mutex and ssh-write-mutex!
 (define (kexinit-respond ssh kexinit-payload/read)
 
+  (mutex-lock! (ssh-write-mutex ssh))
+
   (unless (ssh-kexinit/sent ssh)
-    ;; remote side initiated kexinit
-    (kexinit-start ssh))
+    (let ((kexinit-packet (unparse-kexinit*)))
+      (%ssh-kexinit/sent-set! ssh kexinit-packet)
+      (write-payload/mutexless ssh kexinit-packet)))
 
   (parameterize ((currently-kexing? #t))
     (kexinit-respond/mutexless ssh kexinit-payload/read)
-    (%ssh-kexinit/sent-set! ssh #f)
-    (mutex-unlock! (ssh-kex-mutex ssh))))
+    (%ssh-kexinit/sent-set! ssh #f))
 
-;; send a kexinit packet. this blocks other ssh packet writes until
-;; the entire kex process is over. ssh packet reads are still not only
-;; accepted, but needed to complete the kex process. do _not_ send ssh
-;; packets (or call `kexinit-start` again) after calling
-;; `kexinit-start` unless you're sure there is another thread reading
-;; ssh packets, otherwise you'll create deadlocks.
+  (mutex-unlock! (ssh-write-mutex ssh)))
+
+;; initiate a key regotiation. the subsequent incoming packet may not
+;; immeditatly be the kexinit reply!
 (define (kexinit-start ssh)
-  (mutex-lock! (ssh-kex-mutex ssh)) ;; block other senders until kex in done
-
-  (when (ssh-kexinit/sent ssh)
-    (error "internal error: kexinit/sent already present"))
-
   (let ((kexinit-packet (unparse-kexinit*)))
-    (%ssh-kexinit/sent-set! ssh kexinit-packet)
-    (write-payload/mutexless ssh kexinit-packet)))
-
-;; run the initial kex process (or whenever the only possible incoming
-;; payload type is kexinit)
-(define (run-kex ssh)
-  (kexinit-start ssh)
-  (let ((payload (read-payload/nokexinit ssh)))
-    (if (eq? 'kexinit (payload-type payload))
-        (kexinit-respond ssh payload)
-        (error "run-kex: unexpected packet type " (payload-type payload) (string->blob payload)))))
+    (write-payload ssh kexinit-packet)))
 
 (include "minissh-parsing.scm")
 
@@ -648,7 +668,7 @@
                            server-host-key-public
                            (asymmetric-sign server-host-key-secret)))
                (run-protocol-exchange ssh)
-               (run-kex ssh)
+               (kexinit-start ssh)
                (handler ssh)
                (close-input-port ip)
                (close-output-port op)))))

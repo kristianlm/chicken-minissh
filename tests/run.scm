@@ -85,7 +85,8 @@
                          (else (set! packets #f)))
                    (t))))
              writer
-             (make-mutex)   ;; kex/mutex
+             (make-queue)
+             (make-mutex) (make-mutex) ;; read write
              #f             ;; kex/sent
              (make-hash-table)))
 
