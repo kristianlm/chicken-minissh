@@ -48,6 +48,7 @@
              seqnum/read    seqnum/write
              payload-reader payload-writer
              kex-mutex
+             kexinit/sent
              channels)
   ssh?
   (server?        ssh-server?        %ssh-server-set!)
@@ -64,6 +65,7 @@
   (payload-reader ssh-payload-reader %ssh-payload-reader-set!)
   (payload-writer ssh-payload-writer %ssh-payload-writer-set!)
   (kex-mutex      ssh-kex-mutex)
+  (kexinit/sent   ssh-kexinit/sent   %ssh-kexinit/sent-set!)
   (channels       ssh-channels))
 
 (define-record-printer ssh
@@ -93,6 +95,7 @@
              read-payload/none
              write-payload/none
              (make-mutex)
+             #f
              (make-hash-table)))
 
 ;; ssh-kex-mutex is used to block others to send ssh-packets in the
@@ -364,7 +367,7 @@
   read-payload/chacha20)
 
 ;; like read-payload, but without kexinit handler
-(define (read-payload* ssh)
+(define (read-payload/nokexinit ssh)
   (let ((payload ((ssh-payload-reader ssh) ssh)))
     (ssh-log-recv ssh payload)
     (%ssh-seqnum/read-set! ssh (+ 1 (ssh-seqnum/read ssh)))
@@ -372,10 +375,10 @@
 
 ;; read the next packet from ssh and extract its payload
 (define (read-payload ssh)
-  (let ((payload (read-payload* ssh)))
+  (let ((payload (read-payload/nokexinit ssh)))
     (if (eq? 'kexinit (payload-type payload))
         (begin
-          (run-kex ssh payload)
+          (kexinit-respond ssh payload)
           (read-payload ssh))
         payload)))
 
@@ -474,26 +477,19 @@
    0))       ;; reserved00
 
 
-;; kex/read is an optional string representing the received KEXINIT
-;; payload (reads next packet if not specified).
-(define (run-kex/mutexless ssh kex/read)
+;; process the incoming kexinit payload (kex/read). this must be done
+;; in lockstep per SSH protocol: so no other threads must send ssh
+;; packets while this procedure is running.
+(define (kexinit-respond/mutexless ssh kex/read)
 
   (unless (and (ssh-hello/server ssh)
                (ssh-hello/client ssh))
     (error "run-protocol-exchange not run"))
 
-  (define kex/write (unparse-kexinit*))
-  (write-payload ssh kex/write)
-
-  (unless kex/read
-    (set! kex/read (read-payload* ssh))
-    (unless (eq? 'kexinit (payload-type kex/read))
-      (error "kex fault: expected kexinit, got " (wots (write (payload-parse kex/read))))))
-
   (define (xhash! remote-pk local-pk sharedsecret host-pk)
     (define hash
       (exchange-hash ssh
-                     kex/read kex/write
+                     kex/read (ssh-kexinit/sent ssh)
                      local-pk remote-pk
                      host-pk
                      sharedsecret))
@@ -559,13 +555,39 @@
   (%ssh-payload-reader-set! ssh (make-payload-reader/chacha20 key-c2s-main key-c2s-header))
   (%ssh-payload-writer-set! ssh (make-payload-writer/chacha20 key-s2c-main key-s2c-header)))
 
-(define (run-kex ssh #!optional kex/read)
-  (when (currently-kexing?)
-    (error "kexing already in progress"))
-  (mutex-lock! (ssh-kex-mutex ssh))
+(define (kexinit-respond ssh kexinit-payload/read)
+  (unless (ssh-kexinit/sent ssh)
+    (error "internal error: kexinit/sent not present"))
+
   (parameterize ((currently-kexing? #t))
-    (run-kex/mutexless ssh kex/read))
-  (mutex-unlock! (ssh-kex-mutex ssh)))
+    (kexinit-respond/mutexless ssh kexinit-payload/read)
+    (%ssh-kexinit/sent-set! ssh #f)
+    (mutex-unlock! (ssh-kex-mutex ssh))))
+
+;; send a kexinit packet. this blocks other ssh packet writes until
+;; the entire kex process is over. ssh packet reads are still not only
+;; accepted, but needed to complete the kex process. do _not_ send ssh
+;; packets (or call `kexinit-start` again) after calling
+;; `kexinit-start` unless you're sure there is another thread reading
+;; ssh packets, otherwise you'll create deadlocks.
+(define (kexinit-start ssh)
+  (mutex-lock! (ssh-kex-mutex ssh)) ;; block other senders until kex in done
+
+  (when (ssh-kexinit/sent ssh)
+    (error "internal error: kexinit/sent already present"))
+
+  (let ((kexinit-packet (unparse-kexinit*)))
+    (%ssh-kexinit/sent-set! ssh kexinit-packet)
+    (write-payload/mutexless ssh kexinit-packet)))
+
+;; run the initial kex process (or whenever the only possible incoming
+;; payload type is kexinit)
+(define (run-kex ssh)
+  (kexinit-start ssh)
+  (let ((payload (read-payload/nokexinit ssh)))
+    (if (eq? 'kexinit (payload-type payload))
+        (kexinit-respond ssh payload)
+        (error "run-kex: unexpected packet type " (payload-type payload) (string->blob payload)))))
 
 (include "minissh-parsing.scm")
 

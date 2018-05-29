@@ -35,5 +35,13 @@ test with: ssh localhost -p 22022 kex < /dev/null # any user, any passsord")
 
    (let loop ((n 0))
      (unparse-channel-data ssh cid (conc "kex " n "\n"))
-     (run-kex ssh)
+     (kexinit-start ssh)
+     (let loop ()
+       ;; we're only really interested in the kexinit packet, that's
+       ;; why this is slightly clumpsy.
+       (let ((payload (read-payload/nokexinit ssh)))
+         (if (eq? 'kexinit (payload-type payload))
+             (kexinit-respond ssh payload)
+             (begin (print "discarding packet: " (payload-parse payload))
+                    (loop)))))
      (loop (+ n 1)))))
