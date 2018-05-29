@@ -41,10 +41,6 @@ You have to do this youself.
 minissh will currently never initiate a key exchange (but will respond
 correctly to when the remote side initiates).
 
-## fix known bug: limit ssh packet sizes to 32k as per specification
-
-because `(display (make-string (* 1024 1024)))` fails, for example.
-
 ## plus these things
 
 - everywhere: nice API

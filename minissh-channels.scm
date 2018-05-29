@@ -7,6 +7,7 @@
   (%make-ssh-channel ssh type ;; type is almost always "session"
                      cid ;; same id for sender and receiver
                      mutex cv
+                     max-ps
                      bytes/read bytes/write) ;; window sizes
   ;; TODO: field for max packet size
   ;; TODO: field for exit-status, exec command?
@@ -16,10 +17,11 @@
   (cid  ssh-channel-cid)
   (mutex ssh-channel-mutex)
   (cv    ssh-channel-cv)
+  (max-ps      ssh-channel-max-ps)
   (bytes/read  ssh-channel-bytes/read  %ssh-channel-bytes/read-set!)
   (bytes/write ssh-channel-bytes/write %ssh-channel-bytes/write-set!))
 
-(define (make-ssh-channel ssh type cid bytes/read bytes/write)
+(define (make-ssh-channel ssh type cid bytes/read bytes/write max-ps)
   (assert (ssh? ssh))
   (assert (string? type))
   (assert (integer? cid))
@@ -27,10 +29,11 @@
   (assert (integer? bytes/write))
   (%make-ssh-channel ssh type cid
                      (make-mutex) (make-condition-variable)
+                     max-ps
                      bytes/read bytes/write))
 
 ;; add it to the ssh channel hash-table
-(define (handle-channel-open ssh type cid ws-remote max)
+(define (handle-channel-open ssh type cid ws-remote max-ps)
 
   (define ws-local #x000010)
   (define max-packet-size #x800000)
@@ -41,7 +44,8 @@
   (set! (ssh-channel ssh cid)
         (make-ssh-channel ssh type cid
                           ws-local
-                          ws-remote)))
+                          ws-remote
+                          max-ps)))
 
 (define (handle-channel-close ssh cid)
   (hash-table-delete! (ssh-channels ssh) cid))
@@ -70,6 +74,8 @@
 (define (ssh-channel-write ch str stderr?)
   (assert (string? str))
 
+  ;; transport layer limits packet sizes too
+  (define max-ps (min (ssh-channel-max-ps ch) 32768))
   (define (send! str)
     (if stderr?
         (unparse-channel-extended-data (ssh-channel-ssh ch)
@@ -85,18 +91,18 @@
   (define m (ssh-channel-mutex ch))
 
   (let loop ((str str))
+    (define limit (min max-ps (ssh-channel-bytes/write ch)))
     (mutex-lock! m)
-    (if (> (ssh-channel-bytes/write ch) (string-length str))
+    (if (<= (string-length str) limit)
         (if (string-null? str)
-            (mutex-unlock! m)
+            (mutex-unlock! m)  ;; don't send empty data packets
             (begin (send! str) ;; room for everything
                    (mutex-unlock! m)))
-        (if (> (ssh-channel-bytes/write ch) 0)
-            ;; room for a little bit
-            (let ((room (ssh-channel-bytes/write ch)))
-              (send! (substring str 0 room))
+        (if (> limit 0) ;; room for some
+            (begin
+              (send! (substring str 0 limit))
               (mutex-unlock! m)
-              (loop (substring str room)))
+              (loop (substring str limit)))
             (begin ;; room for nothing, wait
               (mutex-unlock! m (ssh-channel-cv ch))
               (loop str))))))
