@@ -119,14 +119,18 @@
     (parameterize
         ((current-output-port
           (make-output-port
-           (lambda (str) (ssh-channel-write (ssh-channel ssh cid) str #f))
+           (lambda (str)
+             (##sys#with-print-length-limit ;; <-- avoid ##sys#print exits
+              #f (lambda () (ssh-channel-write (ssh-channel ssh cid) str #f))))
            (lambda ()
              (unparse-channel-eof ssh cid)
              (unparse-channel-close ssh cid))))
 
          (current-error-port
           (make-output-port
-           (lambda (str) (ssh-channel-write (ssh-channel ssh cid) str #t))
+           (lambda (str)
+             (##sys#with-print-length-limit ;; <-- avoid ##sys#print exits
+              #f (lambda () (ssh-channel-write (ssh-channel ssh cid) str #t))))
            (lambda ()
              (unparse-channel-eof ssh cid)
              (unparse-channel-close ssh cid))))
