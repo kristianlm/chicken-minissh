@@ -12,7 +12,7 @@
 (ssh-server-start
  host-pk host-sk
  (lambda (ssh)
-   (run-userauth ssh password: (lambda (user password) #t))
+   (run-userauth ssh password: (lambda (user password) #t) publickey: (lambda _ #t))
    (run-channels ssh
                  exec:
                  (lambda (ssh cmd)

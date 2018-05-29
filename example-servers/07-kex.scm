@@ -18,7 +18,7 @@ test with: ssh localhost -p 22022 kex < /dev/null # any user, any passsord")
 (ssh-server-start
  host-pk host-sk
  (lambda (ssh)
-   (run-userauth ssh password: (lambda (user password) #t))
+   (run-userauth ssh password: (lambda _ #t) publickey: (lambda _ #t))
 
    (define cid
      (let loop ()
