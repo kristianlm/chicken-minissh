@@ -54,7 +54,7 @@
              seqnum/read    seqnum/write
              payload-reader payload-writer
              queue
-             read-mutex write-mutex
+             read-mutex write-mutex read-cv
              kexinit/sent
              channels)
   ssh?
@@ -74,6 +74,7 @@
   (queue          ssh-queue)
   (read-mutex     ssh-read-mutex)
   (write-mutex    ssh-write-mutex)
+  (read-cv        ssh-read-cv)
   (kexinit/sent   ssh-kexinit/sent   %ssh-kexinit/sent-set!)
   (channels       ssh-channels))
 
@@ -106,6 +107,7 @@
              write-payload/none
              (make-queue)
              (make-mutex) (make-mutex) ;; read write
+             (make-condition-variable) ;; ssh-read-cv
              #f
              (make-hash-table)))
 
@@ -268,21 +270,31 @@
 (define (write-payload/mutex ssh p)
   (mutex-lock! (ssh-write-mutex ssh))
   (if (ssh-kexinit/sent ssh)
+      ;; kexing, we'll need to halt everything and wait for a kexinit
+      ;; response. we can't send non-kex packets until this is all
+      ;; over.
       (begin
-        ;; allow other readers to poke at ssh-kexinit/sent
-        (mutex-unlock! (ssh-write-mutex ssh))
-
-        (mutex-lock! (ssh-read-mutex ssh))
-        (let ((incoming (read-payload/mutexless ssh)))
-          (if (%kexinit? incoming)
-              (begin
-                (kexinit-respond ssh incoming)
-                (mutex-unlock! (ssh-read-mutex ssh))
-                (write-payload ssh p))
-              (begin
-                (queue-add! (ssh-queue ssh) incoming)
-                (mutex-unlock! (ssh-read-mutex ssh))
-                (write-payload ssh p)))))
+        ;; TODO: internal error when timeout is 0. core bug?
+        (if (mutex-lock! (ssh-read-mutex ssh) 0.01)
+            ;; noone else is reading, we'll have to do the dirty work
+            ;; ourselves.
+            (begin (mutex-unlock! (ssh-write-mutex ssh))
+                   (let ((incoming (read-payload/mutexless ssh)))
+                     (if (%kexinit? incoming)
+                         (begin ;; all according to plan
+                           (kexinit-respond ssh incoming)
+                           ;; kexinit/sent should be #f now
+                           (mutex-unlock! (ssh-read-mutex ssh))
+                           (write-payload/mutex ssh p))
+                         (begin ;; obs, didn't intend to get this one
+                           (queue-add! (ssh-queue ssh) incoming)
+                           (mutex-unlock! (ssh-read-mutex ssh))
+                           (write-payload/mutex ssh p)))))
+            ;; we didn't get the read lock - someone else is reading
+            ;; and they'll do the work for us. wait for them to
+            ;; finish.
+            (begin (mutex-unlock! (ssh-write-mutex ssh) (ssh-read-cv ssh))
+                   (write-payload/mutex ssh p))))
       (begin
         (when (%kexinit? p)
           (%ssh-kexinit/sent-set! ssh p))
@@ -621,6 +633,9 @@
   (parameterize ((currently-kexing? #t))
     (kexinit-respond/mutexless ssh kexinit-payload/read)
     (%ssh-kexinit/sent-set! ssh #f))
+
+  ;; release any blocked writers
+  (condition-variable-broadcast! (ssh-read-cv ssh))
 
   (mutex-unlock! (ssh-write-mutex ssh)))
 

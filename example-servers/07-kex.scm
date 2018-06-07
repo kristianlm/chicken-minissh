@@ -13,27 +13,17 @@ the system. your ssh client should output an infinite
 stream of \"kex\" messages (slowly, since transport cipher is
 renegotiated every time) and will hopefully never halt.
 
-test with: ssh localhost -p 22022 kex < /dev/null # any user, any passsord")
+test with: ssh localhost -p 22022 kex # any user, any passsord")
 
 (ssh-server-start
  host-pk host-sk
  (lambda (ssh)
    (run-userauth ssh password: (lambda _ #t) publickey: (lambda _ #t))
-
-   (define cid
-     (let loop ()
-       (match (next-payload ssh)
-         (('channel-open type cid . blablabla) cid)
-         (else (print "ignoring packet " else) (loop)))))
-
-   (unparse-channel-open-confirmation ssh cid cid 32767 327676)
-
-   (read-payload/expect ssh 'channel-request)
-   (unparse-channel-success ssh cid)
-
-   (read-payload/expect ssh 'channel-eof)
-
-   (let loop ((n 0))
-     (unparse-channel-data ssh cid (conc "kex " n "\n"))
-     (kexinit-start ssh)
-     (loop (+ n 1)))))
+   (run-channels ssh
+                 exec:
+                 (lambda (ssh cmd)
+                   (let loop ((n 0))
+                     (print "kex " n)
+                     (ssh-log "calling kexinit-start")
+                     (kexinit-start ssh)
+                     (loop (+ n 1)))))))

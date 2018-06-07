@@ -87,6 +87,7 @@
              writer
              (make-queue)
              (make-mutex) (make-mutex) ;; read write
+             (make-condition-variable) ;; ssh-read-cv
              #f             ;; kex/sent
              (make-hash-table)))
 
