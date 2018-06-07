@@ -212,8 +212,7 @@
          (%ssh-channel-bytes/write-set!
           ch (+ (ssh-channel-bytes/write ch) increment))
 
-         (condition-variable-broadcast!
-          (ssh-channel-cv (ssh-channel ssh cid)))
+         (condition-variable-broadcast! (ssh-channel-cv ch))
 
          (mutex-unlock! m)
 
