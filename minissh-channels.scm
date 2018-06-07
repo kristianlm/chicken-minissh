@@ -91,8 +91,8 @@
   (define m (ssh-channel-mutex ch))
 
   (let loop ((str str))
-    (define limit (min max-ps (ssh-channel-bytes/write ch)))
     (mutex-lock! m)
+    (define limit (min max-ps (ssh-channel-bytes/write ch)))
     (if (<= (string-length str) limit)
         (if (string-null? str)
             (mutex-unlock! m)  ;; don't send empty data packets
