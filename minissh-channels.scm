@@ -118,10 +118,14 @@
   (unless (ssh-user ssh)
     (error "run-channels called before userauth"))
 
-  (define ht (make-hash-table))
+  (define ssh-channel-gochan
+    (let ((ht (make-hash-table)))
+     (getter-with-setter
+      (lambda (cid) (hash-table-ref ht cid))
+      (lambda (cid chan) (hash-table-set! ht cid chan)))))
 
   (define (with-channel-io cid thunk)
-    (define chan (hash-table-ref ht cid))
+    (define chan (ssh-channel-gochan cid))
     (parameterize
         ((current-output-port
           (make-output-port
@@ -176,7 +180,7 @@
 
       (('channel-open type cid ws max-packet)
        (handle-channel-open ssh type cid ws max-packet)
-       (hash-table-set! ht cid (gochan 0))
+       (set! (ssh-channel-gochan cid) (gochan 0))
        (loop))
 
       (('channel-request cid 'exec want-reply? command)
@@ -191,15 +195,15 @@
 
       (('channel-data cid str)
        (handle-channel-data ssh cid str)
-       (gochan-send (hash-table-ref ht cid) str)
+       (gochan-send (ssh-channel-gochan cid) str)
        (loop))
 
       (('channel-eof cid)
-       (gochan-close (hash-table-ref ht cid))
+       (gochan-close (ssh-channel-gochan cid))
        (loop))
 
       (('channel-close cid)
-       (gochan-close (hash-table-ref ht cid))
+       (gochan-close (ssh-channel-gochan cid))
        (handle-channel-close ssh cid)
        (loop))
 
