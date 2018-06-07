@@ -49,7 +49,7 @@
   (%make-ssh server?
              ip op
              host-pk hostkey-signer ;; string and procedure
-             sid user
+             sid user user-pk
              hello/server   hello/client
              seqnum/read    seqnum/write
              payload-reader payload-writer
@@ -65,6 +65,7 @@
   (hostkey-signer ssh-hostkey-signer %ssh-hostkey-signer-set!)
   (sid            ssh-sid            %ssh-sid-set!)
   (user           ssh-user           %ssh-user-set!)
+  (user-pk        ssh-user-pk        %ssh-user-pk-set!)
   (hello/server   ssh-hello/server   %ssh-hello/server-set!)
   (hello/client   ssh-hello/client   %ssh-hello/client-set!)
   (seqnum/read    ssh-seqnum/read    %ssh-seqnum/read-set!)
@@ -100,7 +101,7 @@
   (%make-ssh server?
              ip op
              host-pk signer
-             #f #f ;; sid user
+             #f #f #f ;; sid user user-pk
              #f #f ;; hellos
              0 0   ;; sequence numbers
              read-payload/none
@@ -800,6 +801,7 @@
                    (publickey user 'ssh-ed25519 pk #t))
               (if banner (banner user))
               (%ssh-user-set! ssh user)
+              (%ssh-user-pk-set! ssh (string->blob pk))
               (unparse-userauth-success ssh))
              ;; success, no loop ^
              (else

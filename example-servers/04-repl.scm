@@ -18,5 +18,5 @@
                  exec:
                  (lambda (ssh cmd)
                    (eval `(set! ssh ',ssh))
-                   (print "try (ssh-user ssh) or (kexinit-start ssh)")
+                   (print "try (ssh-user ssh), (ssh-user-pk ssh) or (kexinit-start ssh)")
                    (nrepl-loop)))))
