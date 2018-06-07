@@ -592,7 +592,7 @@
        (define sharedsecret (string->mpint (curve25519-dh client-sk server-pk)))
        (define hash (xhash! server-pk client-pk sharedsecret host-pk))
        ;; TODO: verify signature against server-host-key
-       (%ssh-host-pk-set! ssh host-pk)
+       (%ssh-host-pk-set! ssh (string->blob host-pk))
        (values sharedsecret hash))))
 
   (define-values (sharedsecret hash)
