@@ -75,28 +75,23 @@
       (loop))
      ((alive -> _)))))
 
-(thread-start!
- (lambda ()
-   (ssh-server-start
-    host-pk host-sk
-    (lambda (ssh)
+(ssh-server-start
+ host-pk host-sk
+ (lambda (ssh)
 
-      (run-userauth ssh
-                    publickey:
-                    (lambda (user type pk signed?)
-                      (if signed?
-                          (equal? (or (userpk user)
-                                      ;; register first-time user:
-                                      (set! (userpk user) pk))
-                                  pk)
-                          #t)))
+   (run-userauth ssh
+                 publickey:
+                 (lambda (user type pk signed?)
+                   (if signed?
+                       (equal? (or (userpk user)
+                                   ;; register first-time user:
+                                   (set! (userpk user) pk))
+                               pk)
+                       #t)))
 
-      (run-channels ssh
-                    exec:
-                    (lambda (ssh cmd)
-                      (if (equal? cmd "chat")
-                          (handle-chat ssh)
-                          (print "unknown command: " cmd ", try chat")))
-                    shell:
-                    (lambda (ssh)
-                      (print "tty's are hard. try ssh with the 'chat' argument\r\n")))))))
+   (run-channels ssh
+                 exec:
+                 (lambda (ssh cmd)
+                   (if (equal? cmd "chat")
+                       (handle-chat ssh)
+                       (print "unknown command: " cmd ", try chat"))))))
