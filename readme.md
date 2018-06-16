@@ -43,8 +43,9 @@ correctly to when the remote side initiates).
 
 ## plus these things
 
-- everywhere: nice API
-- make a ssh client too
+- API: separate ssh-transport and ssh-channels?
+- client: login with publickey
+- client: API for opening channel
 - transport: allow querying current encryption level
 - channels: pty handling?
 - find a faster current-entropy-port
