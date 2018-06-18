@@ -3,10 +3,10 @@
 ;; there should probably be a minissh-server.scm but I'm not that well
 ;; organized.
 
-(define (ssh-connect host port #!key (connect tcp-connect))
+(define (ssh-connect host port verifier #!key (connect tcp-connect))
   (receive (ip op) (connect host port)
-    ;;                  server?  ports host-pk signer
-    (define ssh (make-ssh #f    ip op   #f     #f))
+    ;;                  server?  ports host-pk signer verifier
+    (define ssh (make-ssh #f    ip op   #f     #f     verifier))
     (run-protocol-exchange ssh)
     (kexinit-start ssh)
     ssh))

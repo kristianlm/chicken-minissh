@@ -72,7 +72,7 @@
 
 ;; custom pretend ssh session
 (define (incoming packets writer)
-  (%make-ssh #t 'ip 'op 'host-pk 'signer 'sid "user"
+  (%make-ssh #t 'ip 'op 'host-pk 'signer 'verifier 'sid "user"
              #f ;; ssh-user-pk
              "hello server" "hello client" 0 0 ;; seqnums
              (let ((packets packets)) ;; <-- reader

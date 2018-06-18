@@ -48,7 +48,7 @@
 (define-record-type ssh
   (%make-ssh server?
              ip op
-             host-pk hostkey-signer ;; string and procedure
+             host-pk hostkey-signer hostkey-verifier ;; blob, procedure, procedure
              sid user user-pk
              hello/server   hello/client
              seqnum/read    seqnum/write
@@ -62,7 +62,8 @@
   (ip             ssh-ip)
   (op             ssh-op)
   (host-pk        ssh-host-pk        %ssh-host-pk-set!)
-  (hostkey-signer ssh-hostkey-signer %ssh-hostkey-signer-set!)
+  (hostkey-signer ssh-hostkey-signer)
+  (hostkey-verifier ssh-hostkey-verifier)
   (sid            ssh-sid            %ssh-sid-set!)
   (user           ssh-user           %ssh-user-set!)
   (user-pk        ssh-user-pk        %ssh-user-pk-set!)
@@ -92,15 +93,18 @@
     (display ")" p)
     (display ">" p)))
 
-(define (make-ssh server? ip op host-pk signer)
+(define (make-ssh server? ip op host-pk signer verifier)
   (assert (input-port? ip))
   (assert (output-port? op))
-  (when server?
-    (assert host-pk)
-    (assert signer))
+  (if server?
+      (begin
+        (assert (blob? host-pk))
+        (assert (procedure? signer)))
+      (begin
+        (assert (procedure? verifier))))
   (%make-ssh server?
              ip op
-             host-pk signer
+             host-pk signer verifier
              #f #f #f ;; sid user user-pk
              #f #f ;; hellos
              0 0   ;; sequence numbers
@@ -591,9 +595,18 @@
       (('kexdh-reply host-pk server-pk signature)
        (define sharedsecret (string->mpint (curve25519-dh client-sk server-pk)))
        (define hash (xhash! server-pk client-pk sharedsecret host-pk))
-       ;; TODO: verify signature against server-host-key
-       (%ssh-host-pk-set! ssh (string->blob host-pk))
-       (values sharedsecret hash))))
+
+       (let ((pkb (string->blob host-pk))
+             (handler (ssh-hostkey-verifier ssh)))
+
+         (if ((asymmetric-verify pkb) (conc signature hash))
+             (if (handler pkb)
+                 (begin
+                   (%ssh-host-pk-set! ssh pkb)
+                   (values sharedsecret hash))
+                 (begin
+                   (error "server hostkey not accepted")))
+             (error "server hostkey signature mismatch"))))))
 
   (define-values (sharedsecret hash)
     (if (ssh-server? ssh)
@@ -685,7 +698,8 @@
                  (make-ssh #t
                            ip op
                            server-host-key-public
-                           (asymmetric-sign server-host-key-secret)))
+                           (asymmetric-sign server-host-key-secret) ;; ssh-hostkey-signer
+                           #f)) ;; ssh-hostkey-verifier
                (run-protocol-exchange ssh)
                (kexinit-start ssh)
                (handler ssh)
