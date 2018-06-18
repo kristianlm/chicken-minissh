@@ -660,8 +660,11 @@
 (define (ssh-server-start server-host-key-public
                           server-host-key-secret
                           handler
-                          #!key (port 22022))
-  (define ss (tcp-listen port))
+                          #!key
+                          (port 22022)
+                          (listener (tcp-listen port))
+                          (accept tcp-accept)
+                          (spawn thread-start!))
   (let ((server-host-key-public (if (string? server-host-key-public)
                                     (string->blob server-host-key-public)
                                     server-host-key-public))
@@ -669,8 +672,8 @@
                                     (string->blob server-host-key-secret)
                                     server-host-key-secret)))
     (let loop ()
-      (receive (ip op) (tcp-accept ss)
-        (thread-start!
+      (receive (ip op) (accept listener)
+        (spawn
          (lambda ()
            (handle-exceptions
                e (begin
