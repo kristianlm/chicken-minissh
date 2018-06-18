@@ -756,6 +756,12 @@
   ((asymmetric-verify (string->blob (pk->pkblob pk)))
    (conc (sign->signblob signature) signbuff)))
 
+
+(define (signblob->sign signblob)
+  (wots
+   (ssh-write-string "ssh-ed25519")
+   (ssh-write-string signblob)))
+
 ;; publickey must return true if a (user pk) login would be ok (can be called multiple times)
 ;; password must return true if (user password) loging would be ok
 ;; banner gets called after successful authenticaion, but before sending 'userauth-success
