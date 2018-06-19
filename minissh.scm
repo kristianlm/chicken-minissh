@@ -56,6 +56,7 @@
              queue
              read-mutex write-mutex read-cv
              kexinit/sent
+             specific
              channels)
   ssh?
   (server?        ssh-server?        %ssh-server-set!)
@@ -78,6 +79,7 @@
   (write-mutex    ssh-write-mutex)
   (read-cv        ssh-read-cv)
   (kexinit/sent   ssh-kexinit/sent   %ssh-kexinit/sent-set!)
+  (specific       ssh-specific       ssh-specific-set!)
   (channels       ssh-channels))
 
 (define-record-printer ssh
@@ -114,6 +116,7 @@
              (make-mutex) (make-mutex) ;; read write
              (make-condition-variable) ;; ssh-read-cv
              #f
+             #f ;; specific
              (make-hash-table)))
 
 ;; ssh-kex-mutex is used to block others to send ssh-packets in the
