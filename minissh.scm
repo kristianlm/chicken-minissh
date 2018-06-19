@@ -855,4 +855,5 @@
 
       (otherwise (unhandled otherwise loop)))))
 
+(include "minissh-client.scm")
 (include "minissh-channels.scm")
