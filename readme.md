@@ -44,7 +44,7 @@ correctly to when the remote side initiates).
 ## plus these things
 
 - API: separate ssh-transport and ssh-channels?
-- API: string->blob for publickey callback
+- API: base64 public keys
 - fix: I don't think `(mutex-lock! m 0.1)` pattern will always work
 - client: API for opening channel
 - benchmark: faster read-string! based channel-inpur-port
