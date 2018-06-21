@@ -79,15 +79,15 @@
  host-pk host-sk
  (lambda (ssh)
 
-   (run-userauth ssh
-                 publickey:
-                 (lambda (user type pk signed?)
-                   (if signed?
-                       (equal? (or (userpk user)
-                                   ;; register first-time user:
-                                   (set! (userpk user) pk))
-                               pk)
-                       #t)))
+   (userauth-accept ssh
+                    publickey:
+                    (lambda (user type pk signed?)
+                      (if signed?
+                          (equal? (or (userpk user)
+                                      ;; register first-time user:
+                                      (set! (userpk user) pk))
+                                  pk)
+                          #t)))
    (tcp-read-timeout #f)
    (port-for-each
     (lambda (ch)

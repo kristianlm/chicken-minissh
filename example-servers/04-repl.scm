@@ -14,7 +14,7 @@
  host-pk host-sk
  (lambda (ssh)
    (eval `(set! ssh ',ssh))
-   (run-userauth ssh password: (lambda _ #t) publickey: (lambda _ #t))
+   (userauth-accept ssh password: (lambda _ #t) publickey: (lambda _ #t))
    (tcp-read-timeout #f)
    (port-for-each
     (lambda (ch)

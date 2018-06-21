@@ -31,7 +31,7 @@
 (ssh-server-start
  host-pk host-sk
  (lambda (ssh)
-   (run-userauth
+   (userauth-accept
     ssh
     publickey:
     (lambda (user type pk signed?)

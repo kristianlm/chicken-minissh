@@ -791,12 +791,12 @@
 ;; publickey must return true if a (user pk) login would be ok (can be called multiple times)
 ;; password must return true if (user password) loging would be ok
 ;; banner gets called after successful authenticaion, but before sending 'userauth-success
-(define (run-userauth ssh
-                      #!key publickey password banner
-                      (unhandled
-                       (lambda (x continue)
-                         (ssh-log-ignore/parsed ssh x)
-                         (continue))))
+(define (userauth-accept ssh
+                         #!key publickey password banner
+                         (unhandled
+                          (lambda (x continue)
+                            (ssh-log-ignore/parsed ssh x)
+                            (continue))))
 
   (define (fail! #!optional partial?)
     (define auths

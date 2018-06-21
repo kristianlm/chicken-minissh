@@ -18,7 +18,7 @@ test with: ssh localhost -p 22022 kex # any user, any passsord")
 (ssh-server-start
  host-pk host-sk
  (lambda (ssh)
-   (run-userauth ssh password: (lambda _ #t) publickey: (lambda _ #t))
+   (userauth-accept ssh password: (lambda _ #t) publickey: (lambda _ #t))
    (tcp-read-timeout #f)
    (port-for-each
      (lambda (ch)

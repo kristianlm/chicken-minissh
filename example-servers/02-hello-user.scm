@@ -13,7 +13,7 @@
 (ssh-server-start
  host-pk host-sk
  (lambda (ssh)
-   (run-userauth
+   (userauth-accept
     ssh
     password:
     (lambda (user password)

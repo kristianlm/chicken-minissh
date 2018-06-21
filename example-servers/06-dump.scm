@@ -12,7 +12,7 @@
 (ssh-server-start
  host-pk host-sk
  (lambda (ssh)
-   (run-userauth ssh password: (lambda (user password) #t) publickey: (lambda _ #t))
+   (userauth-accept ssh password: (lambda (user password) #t) publickey: (lambda _ #t))
    (tcp-read-timeout #f)
    (port-for-each
     (lambda (ch)
