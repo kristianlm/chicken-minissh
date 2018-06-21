@@ -6,7 +6,7 @@
 
 (include "oaat.scm")
 
-(define current-window-size (make-parameter 1024))
+(define current-window-size (make-parameter (* 1024 1024)))
 (define current-max-ps      (make-parameter 32767))
 (define (make-cid ssh) (+ 1 (hash-table-fold (ssh-channels ssh) (lambda (k v s) (max k s)) -1)))
 
@@ -328,10 +328,9 @@
 (define (channel-read ch)
   (define chan-data (%channel-gochan-data ch))
 
-  ;; only 1MB left of window? give client more window space.
-  ;; TODO: make this customizable
-  (when (<= (ssh-channel-ws/read ch) (* 1 1024 1024))
-    (let ((increment (* 1024 1024)))
+  ;; give client more window space. TODO: make increment customizable
+  (when (< (ssh-channel-ws/read ch) (current-window-size))
+    (let ((increment (current-window-size)))
      (%ssh-channel-ws/read-set! ch (+ (ssh-channel-ws/read ch) increment))
      (unparse-channel-window-adjust (ssh-channel-ssh ch) (channel-rcid ch) increment)))
 
