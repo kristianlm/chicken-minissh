@@ -21,27 +21,35 @@
     ((_ str body ...)
      (with-input-from-string str (lambda () body ...)))))
 
+(define ssh-log?         (make-parameter #t))
+(define ssh-log-payload? (make-parameter #f))
+
 ;; grab hold of current-error-port now so we don't log into channels
 ;; (and send it across the ssh session).
 (define ssh-log
   (let ((cep (current-error-port)))
-   (lambda args
-     (with-output-to-port cep
-       (lambda () (apply print (cons (thread-name (current-thread))
-                                (cons " " args))))))))
+    (lambda args
+      (when (ssh-log?)
+        (with-output-to-port cep
+          (lambda () (apply print (cons (thread-name (current-thread))
+                                        (cons " " args)))))))))
 
 ;; overrride with shorter version
 (define (ssh-log-recv ssh payload)
-  (ssh-log "ssh recv #" (ssh-seqnum/read ssh) ": " (payload-type payload)
-           " (" (string-length payload) " bytes)"
-           ;; " " (wots (write (payload-parse payload))) ;; uncomment for more juice
-           ))
+  (if (ssh-log-payload?)
+      (ssh-log "ssh recv #" (ssh-seqnum/read ssh) ": " (payload-type payload)
+               " (" (string-length payload) " bytes)"
+               " " (wots (write (payload-parse payload))))
+      (ssh-log "ssh recv #" (ssh-seqnum/read ssh) ": " (payload-type payload)
+               " (" (string-length payload) " bytes)")))
 
 (define (ssh-log-send ssh payload)
-  (ssh-log "ssh send #" (ssh-seqnum/write ssh) ": " (payload-type payload)
-           " (" (string-length payload) " bytes)"
-           ;; " " (wots (write (payload-parse payload))) ;; uncomment for more juice
-           ))
+  (if (ssh-log-payload?)
+      (ssh-log "ssh send #" (ssh-seqnum/write ssh) ": " (payload-type payload)
+               " (" (string-length payload) " bytes)"
+               " " (wots (write (payload-parse payload))))
+      (ssh-log "ssh send #" (ssh-seqnum/write ssh) ": " (payload-type payload)
+               " (" (string-length payload) " bytes)")))
 
 (define (ssh-log-ignore/parsed ssh parsed)
   (ssh-log "ssh ignr #" (ssh-seqnum/write ssh) ": " (car parsed)

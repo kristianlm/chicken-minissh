@@ -1,5 +1,6 @@
 (use test minissh base64 matchable)
 
+(ssh-log? #f)
 
 (test
  "channel-data: simple parse -> unparse"
