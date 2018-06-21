@@ -48,7 +48,7 @@
 (define-record-type ssh
   (%make-ssh server?
              ip op
-             host-pk hostkey-signer hostkey-verifier ;; blob, procedure, procedure
+             host-pk hostkey-signer hostkey-known ;; blob, procedure, procedure
              sid user user-pk
              hello/server   hello/client
              seqnum/read    seqnum/write
@@ -64,7 +64,7 @@
   (op             ssh-op)
   (host-pk        ssh-host-pk        %ssh-host-pk-set!)
   (hostkey-signer ssh-hostkey-signer)
-  (hostkey-verifier ssh-hostkey-verifier)
+  (hostkey-known ssh-hostkey-known)
   (sid            ssh-sid            %ssh-sid-set!)
   (user           ssh-user           %ssh-user-set!)
   (user-pk        ssh-user-pk        %ssh-user-pk-set!)
@@ -631,7 +631,7 @@
                               (curve25519-dh client-sk server-pk))))
        (define hash (xhash! server-pk client-pk sharedsecret host-pk))
        ;; hash and sharedsecret are strings
-       (let ((handler (ssh-hostkey-verifier ssh)))
+       (let ((handler (ssh-hostkey-known ssh)))
 
          (if ((asymmetric-verify (alg-ed25519-strip host-pk))
               (conc (blob->string (alg-ed25519-strip signature)) hash))
@@ -737,7 +737,7 @@
                            ip op
                            server-host-key-public
                            (asymmetric-sign server-host-key-secret) ;; ssh-hostkey-signer
-                           #f)) ;; ssh-hostkey-verifier
+                           #f)) ;; ssh-hostkey-known
                (run-protocol-exchange ssh)
                (kexinit-start ssh)
                (handler ssh)
