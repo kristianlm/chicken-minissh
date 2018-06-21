@@ -91,7 +91,7 @@
              (make-condition-variable) ;; ssh-read-cv
              #f             ;; kex/sent
              #f             ;; specific
-             (make-hash-table)))
+             (make-hash-table) (make-mutex))) ;; ssh-channels ssh-channels-mutex
 
 (let* ((wait (lambda () (thread-yield!)))
        (bytes 0)

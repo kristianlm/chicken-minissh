@@ -8,8 +8,6 @@
 
 (define current-window-size (make-parameter (* 1024 1024)))
 (define current-max-ps      (make-parameter 32767))
-(define (make-cid ssh) (+ 1 (hash-table-fold (ssh-channels ssh) (lambda (k v s) (max k s)) -1)))
-
 
 ;; multiple channel objects per session object
 (define-record-type ssh-channel
@@ -57,16 +55,23 @@
    (gochan 1024) ;; channel-open
    (make-oaat)))
 
-(define (make-ssh-channel ssh type lcid rcid lws rws rmax-ps)
-  (%make-ssh-channel ssh type lcid rcid
-                     (gochan 1024) ;; open-response
-                     (gochan 1024) ;; request
-                     (gochan 1024) ;; request-response
-                     (gochan 1024) ;; data
-                     (gochan 1024) ;; close
-                     (gochan 1024) ;; window-adjust
-                     'unset ;; %channel-cmd (#f for shell)
-                     rmax-ps lws rws))
+(define (make-ssh-channel ssh type rcid lws rws rmax-ps)
+  (mutex-lock! (ssh-channels-mutex ssh))
+  (let* ((lcid (+ 1 (hash-table-fold (ssh-channels ssh)
+                                     (lambda (k v s) (max k s))
+                                     -1)))
+         (ch (%make-ssh-channel ssh type lcid rcid
+                                (gochan 1024) ;; gochan-open-response
+                                (gochan 1024) ;; gochan-cmd
+                                (gochan 1024) ;; gochan-request-response
+                                (gochan 1024) ;; gochan-data
+                                (gochan 1024) ;; gochan-close
+                                (gochan 1024) ;; gochan-window-adjust
+                                'unset ;; %channel-cmd (#f for shell)
+                                rmax-ps lws rws)))
+    (set! (ssh-channel ssh lcid) ch)
+    (mutex-unlock! (ssh-channels-mutex ssh))
+    ch))
 
 (define (channel-close-all-gochans ch p)
   (gochan-close (%channel-gochan-open-response ch) p)
@@ -127,9 +132,11 @@
                    (('disconnect reason-code description language)
                     ;; TODO: keep disconnect reason somewhere
                     (gochan-close (%ssh-gochan-channel-open ssh) p)
+                    (mutex-lock! (ssh-channels-mutex ssh))
                     (hash-table-for-each (ssh-channels ssh)
                                          (lambda (k ch)
-                                           (channel-close-all-gochans ch p)))))))
+                                           (channel-close-all-gochans ch p)))
+                    (mutex-unlock! (ssh-channels-mutex ssh))))))
 
   (ssh-handle! ssh 'channel-data
                (lambda (ssh p)
@@ -267,12 +274,10 @@
           (match msg
             (('channel-open type rcid rws rmax-ps)
              (let ((lws (current-window-size))
-                   (lmax-ps (current-max-ps))
-                   (lcid (make-cid ssh)))
-               (unparse-channel-open-confirmation ssh rcid lcid
+                   (lmax-ps (current-max-ps)))
+               (define ch (make-ssh-channel ssh type rcid lws rws rmax-ps))
+               (unparse-channel-open-confirmation ssh rcid (channel-lcid ch)
                                                   lws lmax-ps)
-               (define ch (make-ssh-channel ssh type lcid rcid lws rws rmax-ps))
-               (set! (ssh-channel ssh lcid) ch)
                 ;; force server to process exec/shell requests
                 ;; immediately to avoid hangs on client-side
                (channel-cmd ch)
@@ -284,13 +289,12 @@
   (register-client-handlers! ssh)
 
   (let* ((lws (current-window-size))
-         (lcid (make-cid ssh))
          (lmax-ps (current-max-ps)))
 
+    ;;                                     ,--rcid ,--rws unknown
+    (define ch (make-ssh-channel ssh type #f lws #f lmax-ps))
+    (define lcid (channel-lcid ch))
     (unparse-channel-open ssh type lcid lws lmax-ps)
-    ;;                                          ,------,-- rcid and rws unknown at this point
-    (define ch (make-ssh-channel ssh type lcid #f lws #f lmax-ps))
-    (set! (ssh-channel ssh lcid) ch)
     (define chan-open-response (%channel-gochan-open-response ch))
 
     (let loop ()

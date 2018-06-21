@@ -68,7 +68,7 @@
              read-mutex write-mutex read-cv
              kexinit/sent
              specific
-             channels)
+             channels channels-mutex)
   ssh?
   (server?        ssh-server?        %ssh-server-set!)
   (ip             ssh-ip)
@@ -91,7 +91,8 @@
   (read-cv        ssh-read-cv)
   (kexinit/sent   ssh-kexinit/sent   %ssh-kexinit/sent-set!)
   (specific       ssh-specific       ssh-specific-set!)
-  (channels       ssh-channels))
+  (channels       ssh-channels)
+  (channels-mutex ssh-channels-mutex))
 
 (define-record-printer ssh
   (lambda (ssh p)
@@ -128,8 +129,8 @@
              (make-condition-variable) ;; ssh-read-cv
              #f
              #f ;; specific
-             (make-hash-table)))
-
+             (make-hash-table)
+             (make-mutex)))
 
 ;; base64 pk string => blob
 (define (pk64->pk pk64)
