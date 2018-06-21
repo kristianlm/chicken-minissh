@@ -19,29 +19,22 @@
   (%ssh-user-set! ssh user))
 
 ;; TODO: rename and move in with the other guys
-;;                          string blob blob
-(define (publickey-sign ssh user   pk   sk)
+;;                          string string blob
+(define (publickey-sign ssh user   pk64   sk)
   (alg-ed25519-add
    (string->blob
     (substring
      ((asymmetric-sign sk)
-      (userauth-publickey-signature-blob
-       ssh user
-       (string->blob
-        (wots (ssh-write-string "ssh-ed25519")
-              (ssh-write-string (blob->string pk))))))
+      (userauth-publickey-signature-blob ssh user pk64))
      0 64))))
 
-(define (userauth-publickey ssh user pk sk)
+(define (userauth-publickey ssh user pk64 sk)
   (unparse-service-request ssh "ssh-userauth")
   (read-payload/expect ssh 'service-accept)
   (unparse-userauth-request ssh user "ssh-connection"
                             'publickey #t 'ssh-ed25519
-                            (string->blob
-                             (wots ;; TODO: make pk consistent! ssh-ed25519 prefix in our out!?
-                              (ssh-write-string "ssh-ed25519")
-                              (ssh-write-blob pk)))
-                            (publickey-sign ssh user pk sk))
+                            pk64
+                            (publickey-sign ssh user pk64 sk))
   (read-payload/expect ssh 'userauth-success)
   (%ssh-user-set! ssh user))
 

@@ -7,7 +7,8 @@
      (only matchable match)
      (only data-structures conc intersperse rassoc string-split
            make-queue queue-add! queue-remove! queue-empty?)
-     (only extras read-string read-line read-byte write-byte))
+     (only extras read-string read-line read-byte write-byte)
+     (only base64 base64-decode base64-encode))
 
 (define-syntax wots
   (syntax-rules ()
@@ -48,7 +49,8 @@
 (define-record-type ssh
   (%make-ssh server?
              ip op
-             host-pk hostkey-signer hostkey-known ;; blob, procedure, procedure
+             ;; base64-string procedure      procedure
+             host-pk64        hostkey-signer hostkey-known
              sid user user-pk
              hello/server   hello/client
              seqnum/read    seqnum/write
@@ -62,7 +64,7 @@
   (server?        ssh-server?        %ssh-server-set!)
   (ip             ssh-ip)
   (op             ssh-op)
-  (host-pk        ssh-host-pk        %ssh-host-pk-set!)
+  (host-pk64      ssh-host-pk64      %ssh-host-pk64-set!)
   (hostkey-signer ssh-hostkey-signer)
   (hostkey-known ssh-hostkey-known)
   (sid            ssh-sid            %ssh-sid-set!)
@@ -95,18 +97,18 @@
     (display ")" p)
     (display ">" p)))
 
-(define (make-ssh server? ip op host-pk signer verifier)
+(define (make-ssh server? ip op host-pk64 signer verifier)
   (assert (input-port? ip))
   (assert (output-port? op))
   (if server?
       (begin
-        (assert (blob? host-pk))
+        (assert (string? host-pk64))
         (assert (procedure? signer)))
       (begin
         (assert (procedure? verifier))))
   (%make-ssh server?
              ip op
-             host-pk signer verifier
+             host-pk64 signer verifier
              #f #f #f ;; sid user user-pk
              #f #f ;; hellos
              0 0   ;; sequence numbers
@@ -118,6 +120,15 @@
              #f
              #f ;; specific
              (make-hash-table)))
+
+
+;; base64 pk string => blob
+(define (pk64->pk pk64)
+  (string->blob (base64-decode pk64)))
+
+(define (pk->pk64 pk)
+  (base64-encode (blob->string pk)))
+
 
 ;; ssh-kex-mutex is used to block others to send ssh-packets in the
 ;; middle of a kex session. write-payload is therefore protected by
@@ -208,6 +219,10 @@
 (define (ssh-write-blob blob #!optional (op (current-output-port)))
   (display (u2s (blob-size blob)) op)
   (display (blob->string blob) op))
+
+(define (ssh-write-string64 str64 #!optional (op (current-output-port)))
+  (assert (string? str64))
+  (ssh-write-string (base64-decode str64)))
 
 (define (ssh-write-symbol packet #!optional (op (current-output-port)))
   (ssh-write-string (symbol->string packet) op))
@@ -409,6 +424,10 @@
   (define packet_length (s2u (read-string/check 4 ip)))
   (string->blob (read-string/check packet_length ip)))
 
+(define (ssh-read-string64 #!optional (ip (current-input-port)))
+  (define packet_length (s2u (read-string/check 4 ip)))
+  (base64-encode (read-string/check packet_length ip)))
+
 (define (ssh-read-symbol #!optional (ip (current-input-port)))
   (string->symbol (ssh-read-string ip)))
 
@@ -597,7 +616,7 @@
     hash)
 
   (define (init-server)
-    (define host-pk/ed25519 (alg-ed25519-add (ssh-host-pk ssh)))
+    (define host-pk (pk64->pk (ssh-host-pk64 ssh)))
     (define kexdh-init (parse-kexdh-init (read-payload/expect ssh 'kexdh-init)))
     (define client-pk ;; blob
       (match kexdh-init
@@ -607,12 +626,12 @@
     (define sharedsecret (string->mpint
                           (blob->string
                            (curve25519-dh server-sk client-pk))))
-    (define hash (xhash! client-pk server-pk sharedsecret host-pk/ed25519))
+    (define hash (xhash! client-pk server-pk sharedsecret host-pk))
     (define signature (alg-ed25519-add ;; <-- returns string
                        (string->blob
                         (substring ((ssh-hostkey-signer ssh) hash) 0 64))))
 
-    (unparse-kexdh-reply ssh host-pk/ed25519 ;; blob
+    (unparse-kexdh-reply ssh (ssh-host-pk64 ssh) ;; string
                          server-pk signature) ;; blob blob
     (values sharedsecret hash))
 
@@ -624,8 +643,9 @@
 
     (define kexdh-reply (payload-parse (read-payload/expect ssh 'kexdh-reply)))
     (match kexdh-reply
-      ;;             blob    blob      blob
-      (('kexdh-reply host-pk server-pk signature)
+      ;;             string    blob      blob
+      (('kexdh-reply host-pk64 server-pk signature)
+       (define host-pk (pk64->pk host-pk64))
        (define sharedsecret (string->mpint
                              (blob->string
                               (curve25519-dh client-sk server-pk))))
@@ -635,14 +655,14 @@
 
          (if ((asymmetric-verify (alg-ed25519-strip host-pk))
               (conc (blob->string (alg-ed25519-strip signature)) hash))
-             (if (handler (alg-ed25519-strip host-pk))
+             (if (handler host-pk64)
                  (begin
-                   (%ssh-host-pk-set! ssh host-pk)
+                   (%ssh-host-pk64-set! ssh host-pk64)
                    (values sharedsecret hash))
                  (begin
                    (error "server hostkey not accepted")))
              (error "server hostkey signature mismatch "
-                    signature
+                    (alg-ed25519-strip signature)
                     (alg-ed25519-strip host-pk)
                     (string->blob hash)))))))
 
@@ -708,7 +728,7 @@
 (define (next-payload ssh)
   (payload-parse (read-payload ssh)))
 
-(define (ssh-server-start server-host-key-public
+(define (ssh-server-start server-host-key-public64
                           server-host-key-secret
                           handler
                           #!key
@@ -716,34 +736,30 @@
                           (listener (tcp-listen port))
                           (accept tcp-accept)
                           (spawn thread-start!))
-  (let ((server-host-key-public (if (string? server-host-key-public)
-                                    (string->blob server-host-key-public)
-                                    server-host-key-public))
-        (server-host-key-secret (if (string? server-host-key-secret)
-                                    (string->blob server-host-key-secret)
-                                    server-host-key-secret)))
-    (let loop ()
-      (receive (ip op) (accept listener)
-        (spawn
-         (lambda ()
-           (handle-exceptions
-               e (begin
-                   (close-input-port ip)
-                   (close-output-port op)
-                   ((current-exception-handler) e))
+  (assert (string? server-host-key-public64))
+  (assert (blob? server-host-key-secret))
+  (let loop ()
+    (receive (ip op) (accept listener)
+      (spawn
+       (lambda ()
+         (handle-exceptions
+             e (begin
+                 (close-input-port ip)
+                 (close-output-port op)
+                 ((current-exception-handler) e))
 
-               (define ssh
-                 (make-ssh #t
-                           ip op
-                           server-host-key-public
-                           (asymmetric-sign server-host-key-secret) ;; ssh-hostkey-signer
-                           #f)) ;; ssh-hostkey-known
-               (run-protocol-exchange ssh)
-               (kexinit-start ssh)
-               (handler ssh)
-               (close-input-port ip)
-               (close-output-port op)))))
-      (loop))))
+             (define ssh
+               (make-ssh #t
+                         ip op
+                         server-host-key-public64 ;; ssh-host-pk64
+                         (asymmetric-sign server-host-key-secret) ;; ssh-hostkey-signer
+                         #f)) ;; ssh-hostkey-known
+             (run-protocol-exchange ssh)
+             (kexinit-start ssh)
+             (handler ssh)
+             (close-input-port ip)
+             (close-output-port op)))))
+    (loop)))
 
 
 ;; ==================== protocol exchange ====================
@@ -783,7 +799,7 @@
 ;; ==================== userauth ====================
 
 ;; return the string/blob used by the client to sign
-(define (userauth-publickey-signature-blob ssh user pk)
+(define (userauth-publickey-signature-blob ssh user pk64)
   ;; unparse-userauth-request does not work here beacuse this blob is
   ;; special. see https://tools.ietf.org/html/rfc4252 page 10
   (wots
@@ -794,12 +810,12 @@
    (ssh-write-string "publickey")
    (ssh-write-boolean #t)
    (ssh-write-string "ssh-ed25519")
-   (ssh-write-blob pk)))
+   (ssh-write-string64 pk64)))
 
-;;                                     string blob blob
-(define (userauth-publickey-verify ssh user   pk   signature)
-  (define signature* (userauth-publickey-signature-blob ssh user pk))
-  ((asymmetric-verify (alg-ed25519-strip pk))
+;;                                     string string blob
+(define (userauth-publickey-verify ssh user   pk64   signature)
+  (define signature* (userauth-publickey-signature-blob ssh user pk64))
+  ((asymmetric-verify (alg-ed25519-strip (pk64->pk pk64)))
    (conc (blob->string (alg-ed25519-strip signature)) signature*)))
 
 ;; publickey must return true if a (user pk) login would be ok (can be called multiple times)
@@ -827,27 +843,27 @@
        (loop))
 
       ;; client asks if pk would be ok (since the actual signing is expensive)
-      (('userauth-request user "ssh-connection" 'publickey #f 'ssh-ed25519 pk)
-       (cond ((and publickey (publickey user 'ssh-ed25519 pk #f))
+      (('userauth-request user "ssh-connection" 'publickey #f 'ssh-ed25519 pk64)
+       (cond ((and publickey (publickey user 'ssh-ed25519 pk64 #f))
               ;; tell client pk will be accepted if upcoming signature verifies
-              (unparse-userauth-pk-ok ssh "ssh-ed25519" pk)
+              (unparse-userauth-pk-ok ssh "ssh-ed25519" pk64)
               (loop))
              (else
               (fail!)
               (loop))))
       ;; login with pk and signature
-      (('userauth-request user "ssh-connection" 'publickey #t 'ssh-ed25519 pk sign)
+      (('userauth-request user "ssh-connection" 'publickey #t 'ssh-ed25519 pk64 sign)
        (cond ((and publickey
-                   (or (userauth-publickey-verify ssh user pk sign)
+                   (or (userauth-publickey-verify ssh user pk64 sign)
                        (begin
                          (unparse-userauth-banner
                           ssh (conc "signature verification failed. this is"
                                     " most likely a bug in chicken-minissh.\n") "")
                          #f))
-                   (publickey user 'ssh-ed25519 pk #t))
+                   (publickey user 'ssh-ed25519 pk64 #t))
               (if banner (banner user))
               (%ssh-user-set! ssh user)
-              (%ssh-user-pk-set! ssh pk)
+              (%ssh-user-pk-set! ssh pk64)
               (unparse-userauth-success ssh))
              ;; success, no loop ^
              (else

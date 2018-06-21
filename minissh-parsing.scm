@@ -168,9 +168,9 @@
   ((blob client-pk)))
 
 (define-parsepair kexdh-reply
-  ((blob ssh-host-pk)
-   (blob serverpk)
-   (blob signature)))
+  ((string64 host-pk)
+   (blob     serverpk)
+   (blob     signature)))
 
 ;; https://tools.ietf.org/html/rfc4252#section-7
 (define-parsepair userauth-request
@@ -181,10 +181,10 @@
           (boolean signature?)
           (cond [(eq? signature? #f)
                  (symbol algorithm)
-                 (blob pk)]
+                 (string64 pk)]
                 [(eq? signature? #t)
                  (symbol algorithm)
-                 (blob pk)
+                 (string64 pk)
                  (blob signature)])]
          [(eq? method 'password)
           (boolean renew?)
@@ -207,7 +207,7 @@
 
 (define-parsepair userauth-pk-ok
   ((string algorithm)
-   (blob pk)))
+   (string64 pk)))
 
 (define-parsepair global-request
   ((string name)

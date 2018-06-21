@@ -13,10 +13,10 @@
 
 (test
  "userauth-request: unparse"
- "2\x00\x00\x00\busername\x00\x00\x00\asession\x00\x00\x00\tpublickey\x01\x00\x00\x00\x0essh***-ed25519\x00\x00\x00\x01\x11\x00\x00\x00\x01\x22"
+ "2\x00\x00\x00\busername\x00\x00\x00\asession\x00\x00\x00\tpublickey\x01\x00\x00\x00\x0essh***-ed25519\x00\x00\x00\x01\x00\x00\x00\x00\x01\x44"
  (unparse-userauth-request
   #f "username" "session" 'publickey
-  #t 'ssh***-ed25519 #${11} #${22}))
+  #t 'ssh***-ed25519 "AA==" #${44}))
 
 (test
  "channel-open: parse"
@@ -36,16 +36,14 @@
 (test
  "userauth-request: parse publickey (no signature)"
  `(userauth-request "tst" "ssh-connection" publickey #f ssh-ed25519
-                    #${0000000b7373682d656432353531390000002087c22ef3cd
-                       43b130429c2f30d364338257ee2c8a152ae4116d2fae3c16
-                       53adc8})
+                    "AAAAC3NzaC1lZDI1NTE5AAAAIIfCLvPNQ7EwQpwvMNNkM4JX7iyKFSrkEW0vrjwWU63I")
  (parse-userauth-request
   "2\x00\x00\x00\x03tst\x00\x00\x00\x0essh-connection\x00\x00\x00\tpublickey\x00\x00\x00\x00\vssh-ed25519\x00\x00\x003\x00\x00\x00\vssh-ed25519\x00\x00\x00 \207\302.\363\315C\2610B\234/0\323d3\202W\356,\212\x15*\344\x11m/\256<\x16S\255\310"))
 
 (test
  "userauth-request: parse publickey (with signature)"
  `(userauth-request "heisann" "ssh-connection" publickey #t ssh-ed25519
-                    #${0000000b7373682d656432353531390000002087c22ef3cd43b130429c2f30d364338257ee2c8a152ae4116d2fae3c1653adc8}
+                    "AAAAC3NzaC1lZDI1NTE5AAAAIIfCLvPNQ7EwQpwvMNNkM4JX7iyKFSrkEW0vrjwWU63I"
                     #${0000000b7373682d6564323535313900000040c03980691aa4b93f4afae6224e428fa2b5ac9aaff052fc421aee64989e19a6397e590ecd65ebd1effe7cec0fecd971eb4b7ad7203634b56da598f33d3feac400})
 
  (parse-userauth-request
@@ -72,7 +70,7 @@
 
 ;; custom pretend ssh session
 (define (incoming packets writer)
-  (%make-ssh #t 'ip 'op 'host-pk 'signer 'verifier 'sid "user"
+  (%make-ssh #t 'ip 'op 'host-pk64 'signer 'verifier 'sid "user"
              #f ;; ssh-user-pk
              "hello server" "hello client" 0 0 ;; seqnums
              (let ((packets packets)) ;; <-- reader
