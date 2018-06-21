@@ -88,10 +88,14 @@
                                    (set! (userpk user) pk))
                                pk)
                        #t)))
-
-   (run-channels ssh
-                 exec:
-                 (lambda (ssh cmd)
-                   (if (equal? cmd "chat")
-                       (handle-chat ssh)
-                       (print "unknown command: " cmd ", try chat"))))))
+   (tcp-read-timeout #f)
+   (port-for-each
+    (lambda (ch)
+      (thread-start!
+       (lambda ()
+         (with-channel-ports
+          ch (lambda ()
+               (if (equal? (channel-cmd ch) "chat")
+                   (handle-chat ssh)
+                   (print "unknown command: " (channel-cmd ch) ", try chat")))))))
+    (lambda () (channel-accept ssh)))))

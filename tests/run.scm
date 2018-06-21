@@ -78,13 +78,14 @@
              (let ((packets packets)) ;; <-- reader
                (lambda (a)
                  (thread-sleep! 0.1)
-                 (when (eq? #f packets) (error 'eof))
-                 (let ((t (car packets)))
-                   (cond ((pair? (cdr packets))
-                          (set! (car packets) (cadr packets))
-                          (set! (cdr packets) (cddr packets)))
-                         (else (set! packets #f)))
-                   (t))))
+                 (if packets
+                     (let ((t (car packets)))
+                       (cond ((pair? (cdr packets))
+                              (set! (car packets) (cadr packets))
+                              (set! (cdr packets) (cddr packets)))
+                             (else (set! packets #f)))
+                       (t))
+                     #!eof)))
              writer
              (make-queue)
              (make-mutex) (make-mutex) ;; read write
@@ -97,35 +98,45 @@
        (bytes 0)
        (here 0)
        (reader-test-done #f)
-       (adjust (lambda (bytes) (unparse-channel-window-adjust #f 1 bytes)))
+       (cid #f)
+       (adjust (lambda (bytes) (unparse-channel-window-adjust #f cid bytes)))
        (ssh
         (incoming
-         (list (lambda () (unparse-channel-open #f "session" 1 4 1000))
-               (lambda () (unparse-channel-request #f 1 'exec #t "kex"))
+         (list (lambda () (unparse-channel-open #f "session" 444 4 1000))
+               (lambda () (unparse-channel-request #f cid 'exec #t "my command"))
                (lambda () (wait) (test 1 here)(test 4 bytes) (adjust 1))
                (lambda () (wait) (test 5 bytes) (adjust 1))
                (lambda () (wait) (test 6 bytes) (adjust 1))
                (lambda () (wait) (test 2 here) (test 7 bytes) (adjust 128))
                (lambda () (wait) (test 3 here) (test 9 bytes)
-                  (set! reader-test-done #t)
-                  (unparse-disconnect #f 0 "test over" "")))
+                       (set! reader-test-done #t)
+                       (unparse-disconnect #f 0 "test over" "")))
          ;; discard written packets, but count bytes through cid 1:
          (lambda (ssh x)
            (match (payload-parse x)
-             (('channel-data 1 str)
+             (('channel-open-confirmation rcid lcid ws max-ps)
+              (set! cid lcid))
+             (('channel-data 444 str)
               (set! bytes (+ bytes (string-length str))))
              (('channel-data cid str)
               (error "unexpected cid" cid))
              (else))))))
-
   (print "============================================================")
-  (run-channels ssh
-                exec: (lambda (ssh cmd)
-                        (display "abc") (set! here 1)
-                        (display "def") (set! here 2)
-                        (display "ghi") (set! here 3)))
+
+  (let ((ch (channel-accept ssh)))
+    (test "my command" (channel-cmd ch))
+    (thread-start!
+     (lambda ()
+       (ssh-log "STARTING")
+       (with-channel-ports
+        ch (lambda ()
+             (display "abc") (set! here 1)
+             (display "def") (set! here 2)
+             (display "ghi") (set! here 3))))))
+
+  ;; loop throuhg all incoming data etc
+  (port-for-each values (lambda () (channel-accept ssh)))
 
   (test #t reader-test-done))
 
 (test-exit)
-

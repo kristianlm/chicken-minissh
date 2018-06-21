@@ -13,10 +13,16 @@
 (ssh-server-start
  host-pk host-sk
  (lambda (ssh)
+   (eval `(set! ssh ',ssh))
    (run-userauth ssh password: (lambda _ #t) publickey: (lambda _ #t))
-   (run-channels ssh
-                 exec:
-                 (lambda (ssh cmd)
-                   (eval `(set! ssh ',ssh))
-                   (print "try ssh, (ssh-user ssh), (ssh-user-pk ssh) or (kexinit-start ssh)")
-                   (nrepl-loop)))))
+   (tcp-read-timeout #f)
+   (port-for-each
+    (lambda (ch)
+      (thread-start!
+       (lambda ()
+         (with-channel-ports*
+          ch (lambda ()
+               (print "try ssh, (ssh-user ssh), (ssh-user-pk ssh)"
+                      " or (kexinit-start ssh)")
+               (nrepl-loop))))))
+    (lambda () (channel-accept ssh)))))

@@ -1,4 +1,4 @@
-(use minissh nrepl)
+(use minissh)
 
 ;; the default /dev/random causes hangs
 (use tweetnacl) (current-entropy-port (open-input-file "/dev/urandom"))
@@ -13,11 +13,14 @@
  host-pk host-sk
  (lambda (ssh)
    (run-userauth ssh password: (lambda (user password) #t) publickey: (lambda _ #t))
-   (run-channels ssh
-                 exec:
-                 (lambda (ssh cmd)
-                   (define s (make-string (* 32 1024) #\.))
-                   (let loop ((n 1))
-                     (ssh-log "step " n)
-                     (display s)
-                     (loop (+ 1 n)))))))
+   (tcp-read-timeout #f)
+   (port-for-each
+    (lambda (ch)
+      (thread-start!
+       (lambda ()
+         (define s (make-string (* 32 1024) #\.))
+         (let loop ((n 1))
+           (ssh-log "step " n)
+           (channel-write ch s)
+           (loop (+ 1 n))))))
+    (lambda () (channel-accept ssh)))))

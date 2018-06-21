@@ -19,11 +19,14 @@ test with: ssh localhost -p 22022 kex # any user, any passsord")
  host-pk host-sk
  (lambda (ssh)
    (run-userauth ssh password: (lambda _ #t) publickey: (lambda _ #t))
-   (run-channels ssh
-                 exec:
-                 (lambda (ssh cmd)
-                   (let loop ((n 0))
-                     (print "kex " n)
-                     (ssh-log "calling kexinit-start")
-                     (kexinit-start ssh)
-                     (loop (+ n 1)))))))
+   (tcp-read-timeout #f)
+   (port-for-each
+     (lambda (ch)
+       (with-channel-ports
+        ch (lambda ()
+             (let loop ((n 0))
+               (print "kex " n)
+               (ssh-log "calling kexinit-start")
+               (kexinit-start ssh)
+               (loop (+ n 1))))))
+     (lambda () (channel-accept ssh)))))

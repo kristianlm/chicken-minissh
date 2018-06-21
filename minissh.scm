@@ -128,13 +128,14 @@
 
 (define ssh-channel
   (getter-with-setter
-   (lambda (ssh cid)     (hash-table-ref  (ssh-channels ssh) cid))
+   (lambda (ssh cid #!optional missing)
+     (if missing
+         (hash-table-ref  (ssh-channels ssh) cid missing)
+         (hash-table-ref  (ssh-channels ssh) cid)))
    (lambda (ssh cid val)
      (if val
          (hash-table-set! (ssh-channels ssh) cid val)
-         (hash-table-remove! (ssh-channels ssh) cid)))))
-
-
+         (hash-table-delete! (ssh-channels ssh) cid)))))
 
 (define *payload-types*
   `( ;; from https://tools.ietf.org/html/rfc4253#section-12
