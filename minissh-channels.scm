@@ -433,13 +433,19 @@
      (channel-close ch))))
 
 (define (channel-error-port ch)
-  (make-output-port
-   (lambda (str)
-     (##sys#with-print-length-limit ;; <-- avoid ##sys#print exits
-      #f (lambda () (channel-write ch str 'stderr))))
-   (lambda ()
-     (channel-eof ch)
-     (channel-close ch))))
+  (let ((cep (current-error-port)))
+    (make-output-port
+     (lambda (str)
+       (handle-exceptions e
+         ;; avoid infinite loop: error while printing an error? that
+         ;; will cause printing to this very same error port!
+         (begin (parameterize ((current-error-port cep))
+                  ((current-exception-handler) e)))
+         (##sys#with-print-length-limit ;; <-- avoid ##sys#print exits
+          #f (lambda () (channel-write ch str 'stderr)))))
+     (lambda ()
+       (channel-eof ch)
+       (channel-close ch)))))
 
 (define (with-channel-ports ch thunk)
   (parameterize ((current-output-port (channel-output-port ch))
