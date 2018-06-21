@@ -137,4 +137,59 @@
 
   (test #t reader-test-done))
 
+;; ============================================================
+;; server <-> client test
+
+;; the default /dev/random causes hangs
+(use tweetnacl) (current-entropy-port (open-input-file "/dev/urandom"))
+
+
+;; the secret key would normally be kept safe
+
+(define server-pk
+  "AAAAC3NzaC1lZDI1NTE5AAAAIMBYnuh7LwwbNZMSLsVhF89lOwXUxr13cAY+SCrVCSbz")
+(define server-sk
+  #${4ce01388de1c552570c969a1da8ce3916cdb85bd0b82993ddb780a7d2d46044f
+     c0589ee87b2f0c1b3593122ec56117cf653b05d4c6bd7770063e482ad50926f3})
+
+(define client-pk
+  "AAAAC3NzaC1lZDI1NTE5AAAAIEPRg0+7VfsR2lmAZ8GVgFA3rbT7NulEfTotVuPS66t+")
+(define client-sk
+  #${6d46a4737e343ab8bde34f3050daed1fe3a7c7dbb79962a9190e1f6c90779a9f
+     43d1834fbb55fb11da598067c195805037adb4fb36e9447d3a2d56e3d2ebab7e})
+
+(print "test with: ssh localhost -p 22022 repl # any user, any password")
+
+(define port 22021)
+;; ==================== server ====================
+(thread-start!
+ (lambda ()
+   (ssh-server-start
+    server-pk server-sk
+    (lambda (ssh)
+      (userauth-accept ssh publickey: (lambda (user type pk signed?)
+                                        (equal? client-pk pk)))
+      (tcp-read-timeout #f)
+      (port-for-each
+       (lambda (ch)
+         (thread-start!
+          (lambda ()
+            (channel-write ch "hello world\n")
+            (channel-eof ch)
+            (channel-close ch))))
+       (lambda () (channel-accept ssh))))
+    port: port)))
+
+;; ==================== client ====================
+
+(thread-sleep! 0.1) ;; give server some time to initialize
+(define ssh (ssh-connect "127.0.0.1" port (lambda (pk) (equal? pk server-pk))))
+(userauth-publickey ssh "minissh" client-pk client-sk)
+
+(define ch (channel-exec ssh "my command"))
+(test "channel cmd loopback"  "my command" (channel-cmd ch))
+(test "channel read" "hello world\n" (channel-read ch))
+
+
+
 (test-exit)
