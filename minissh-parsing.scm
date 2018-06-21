@@ -137,9 +137,10 @@
    (string language)))
 
 ;; TODO: ignore
-;; TODO: unimplemented
 ;; TODO: debug
 
+(define-parsepair unimplemented
+  ((uint32 seq)))
 
 (define-parsepair service-request
   ((string name)))

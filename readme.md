@@ -51,3 +51,4 @@ correctly to when the remote side initiates).
 - transport: allow querying current encryption level
 - channels: pty handling?
 - find a faster current-entropy-port
+- reply with unimplemented when receiving unhandled messages
