@@ -46,7 +46,6 @@ correctly to when the remote side initiates).
 - API: separate ssh-transport and ssh-channels?
 - API: base64 public keys
 - fix: I don't think `(mutex-lock! m 0.1)` pattern will always work
-- client: API for opening channel
 - benchmark: faster read-string! based channel-inpur-port
 - transport: allow querying current encryption level
 - channels: pty handling?
