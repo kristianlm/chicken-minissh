@@ -15,8 +15,10 @@
   (unparse-service-request ssh "ssh-userauth")
   (read-payload/expect ssh 'service-accept)
   (unparse-userauth-request ssh user "ssh-connection" 'password #f password)
-  (read-payload/expect ssh 'userauth-success)
-  (%ssh-user-set! ssh user))
+  (match (next-payload ssh)
+    (('userauth-success) (%ssh-user-set! ssh user) #t)
+    (('userauth-failure list partial?) #f)
+    (else (error "unexpected packet" else))))
 
 ;; TODO: rename and move in with the other guys
 ;;                          string string blob
@@ -35,7 +37,9 @@
                             'publickey #t 'ssh-ed25519
                             pk64
                             (publickey-sign ssh user pk64 sk))
-  (read-payload/expect ssh 'userauth-success)
-  (%ssh-user-set! ssh user))
+  (match (next-payload ssh)
+    (('userauth-success) (%ssh-user-set! ssh user) #t)
+    (('userauth-failure list partial?) #f)
+    (else (error "unexpected packet" else))))
 
 
