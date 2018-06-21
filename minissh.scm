@@ -1,7 +1,8 @@
 (use tcp srfi-18 srfi-69 srfi-13 ports
      (only tweetnacl asymmetric-box-secretkeybytes current-entropy-port
            asymmetric-sign asymmetric-verify
-           symmetric-verify symmetric-sign scalarmult*)
+           symmetric-verify symmetric-sign scalarmult*
+           make-asymmetric-sign-keypair)
      (only sha2 sha256-primitive)
      (only message-digest message-digest-string)
      (only matchable match)
@@ -885,6 +886,14 @@
        (loop))
 
       (otherwise (unhandled otherwise loop)))))
+
+(define (ssh-keygen type)
+  (unless (equal? type 'ed25519)
+    (error "only key type ed25519 is supported"))
+
+  (receive (pkb skb) (make-asymmetric-sign-keypair)
+    (values (base64-encode (blob->string (alg-ed25519-add pkb)))
+            skb)))
 
 (include "minissh-client.scm")
 (include "minissh-channels.scm")
