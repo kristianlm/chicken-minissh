@@ -557,6 +557,21 @@
    0))       ;; reserved00
 
 
+;; write the alrogithm prefix
+(define (alg-ed25519-add blob)
+  (string->blob
+   (wots (ssh-write-string "ssh-ed25519")
+         (ssh-write-string (blob->string blob)))))
+
+;; remove the algorithm prefix
+(define (alg-ed25519-strip pk)
+  (string->blob
+   (wifs (blob->string pk)
+         (let ((alg (ssh-read-string)))
+           (unless (equal? "ssh-ed25519" alg)
+             (error "unsupported algorithm type in host-pk" alg)))
+         (ssh-read-string)))) ;; 32 bytes of raw pk
+
 ;; process the incoming kexinit payload (kex/read). this must be done
 ;; in lockstep per SSH protocol: so no other threads must send ssh
 ;; packets while this procedure is running.
@@ -580,21 +595,6 @@
       (%ssh-sid-set! ssh hash))
 
     hash)
-
-  ;; write the alrogithm prefix
-  (define (alg-ed25519-add blob)
-    (string->blob
-     (wots (ssh-write-string "ssh-ed25519")
-           (ssh-write-string (blob->string blob)))))
-
-  ;; remove the algorithm prefix
-  (define (alg-ed25519-strip pk)
-    (string->blob
-     (wifs (blob->string pk)
-           (let ((alg (ssh-read-string)))
-             (unless (equal? "ssh-ed25519" alg)
-               (error "unsupported algorithm type in host-pk" alg)))
-           (ssh-read-string)))) ;; 32 bytes of raw pk
 
   (define (init-server)
     (define host-pk/ed25519 (alg-ed25519-add (ssh-host-pk ssh)))
@@ -782,16 +782,6 @@
 
 ;; ==================== userauth ====================
 
-(define (pk->pkblob pk)
-  (wifs pk
-        (assert (equal? "ssh-ed25519" (ssh-read-string)))
-        (ssh-read-string)))
-
-(define (sign->signblob sign)
-  (wifs sign
-        (assert (equal? "ssh-ed25519" (ssh-read-string)))
-        (ssh-read-string)))
-
 ;; return the string/blob used by the client to sign
 (define (userauth-publickey-signature-blob ssh user pk)
   ;; unparse-userauth-request does not work here beacuse this blob is
@@ -804,18 +794,13 @@
    (ssh-write-string "publickey")
    (ssh-write-boolean #t)
    (ssh-write-string "ssh-ed25519")
-   (ssh-write-string pk)))
+   (ssh-write-blob pk)))
 
-(define (userauth-publickey-verify ssh user pk signature)
-  (define signbuff (userauth-publickey-signature-blob ssh user pk))
-  ((asymmetric-verify (string->blob (pk->pkblob pk)))
-   (conc (sign->signblob signature) signbuff)))
-
-
-(define (signblob->sign signblob)
-  (wots
-   (ssh-write-string "ssh-ed25519")
-   (ssh-write-string signblob)))
+;;                                     string blob blob
+(define (userauth-publickey-verify ssh user   pk   signature)
+  (define signature* (userauth-publickey-signature-blob ssh user pk))
+  ((asymmetric-verify (alg-ed25519-strip pk))
+   (conc (blob->string (alg-ed25519-strip signature)) signature*)))
 
 ;; publickey must return true if a (user pk) login would be ok (can be called multiple times)
 ;; password must return true if (user password) loging would be ok
@@ -862,7 +847,7 @@
                    (publickey user 'ssh-ed25519 pk #t))
               (if banner (banner user))
               (%ssh-user-set! ssh user)
-              (%ssh-user-pk-set! ssh (string->blob pk))
+              (%ssh-user-pk-set! ssh pk)
               (unparse-userauth-success ssh))
              ;; success, no loop ^
              (else

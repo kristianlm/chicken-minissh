@@ -181,11 +181,11 @@
           (boolean signature?)
           (cond [(eq? signature? #f)
                  (symbol algorithm)
-                 (string pk)]
+                 (blob pk)]
                 [(eq? signature? #t)
                  (symbol algorithm)
-                 (string pk)
-                 (string signature)])]
+                 (blob pk)
+                 (blob signature)])]
          [(eq? method 'password)
           (boolean renew?)
           (cond [(eq? renew? #f)
@@ -207,7 +207,7 @@
 
 (define-parsepair userauth-pk-ok
   ((string algorithm)
-   (string pk)))
+   (blob pk)))
 
 (define-parsepair global-request
   ((string name)
