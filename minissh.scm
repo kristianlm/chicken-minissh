@@ -205,6 +205,10 @@
   (display (u2s (string-length packet)) op)
   (display packet op))
 
+(define (ssh-write-blob blob #!optional (op (current-output-port)))
+  (display (u2s (blob-size blob)) op)
+  (display (blob->string blob) op))
+
 (define (ssh-write-symbol packet #!optional (op (current-output-port)))
   (ssh-write-string (symbol->string packet) op))
 
@@ -401,6 +405,10 @@
   (define packet_length (s2u (read-string/check 4 ip)))
   (read-string/check packet_length ip))
 
+(define (ssh-read-blob #!optional (ip (current-input-port)))
+  (define packet_length (s2u (read-string/check 4 ip)))
+  (string->blob (read-string/check packet_length ip)))
+
 (define (ssh-read-symbol #!optional (ip (current-input-port)))
   (string->symbol (ssh-read-string ip)))
 
@@ -475,23 +483,15 @@
 
   ;; this drains /dev/random very quickly it seems.
   ;; TODO: find a better way.
-  (let* ((sk (read-string asymmetric-box-secretkeybytes
-                          (current-entropy-port)))
-         (pk (blob->string (scalarmult* (string->blob sk)
-                                       scalarmult-base))))
-    (values sk pk)))
+  (let* ((sk (string->blob
+              (read-string asymmetric-box-secretkeybytes
+                           (current-entropy-port))))
+         (pk (scalarmult* sk scalarmult-base)))
+    ;;      blob blob
+    (values sk   pk)))
 
 (define (curve25519-dh server-sk client-pk)
-  (blob->string (scalarmult* (string->blob server-sk)
-                             (string->blob client-pk))))
-
-(define (ssh-write-signpk pk)
-  (define type "ssh-ed25519")
-  ;;(assert (= (string-length pk) 32))
-  (let ((pk (if (blob? pk) (blob->string pk) pk)))
-    (ssh-write-string
-     (conc (u2s (string-length type)) type
-           (u2s (string-length pk))   pk))))
+  (scalarmult* server-sk client-pk))
 
 (define (ssh-server/client ssh send recv)
   (if (ssh-server? ssh)
@@ -499,11 +499,12 @@
       (values recv send)))
 
 ;; produce hash H according to https://tools.ietf.org/html/rfc4253#section-8
+;; returns string
 (define (exchange-hash ssh
-                       kexrecv kexsend
-                       local-pk remote-pk
-                       host-pk
-                       sharedsecret)
+                       kexrecv kexsend ;; string string
+                       local-pk remote-pk ;; blob blob
+                       host-pk ;; blob
+                       sharedsecret) ;; string
 
   (define-values (kex/server kex/client)
       (ssh-server/client ssh kexsend kexrecv))
@@ -516,9 +517,9 @@
                   (ssh-write-string (ssh-hello/server ssh))
                   (ssh-write-string kex/client)
                   (ssh-write-string kex/server)
-                  (ssh-write-signpk host-pk)
-                  (ssh-write-string clientpk)
-                  (ssh-write-string serverpk)
+                  (ssh-write-blob host-pk)
+                  (ssh-write-blob clientpk)
+                  (ssh-write-blob serverpk)
                   (write-mpint/positive sharedsecret))))
     ;;(print "hashcontent: " (string->blob content))
     (sha256 content)))
@@ -565,6 +566,7 @@
                (ssh-hello/client ssh))
     (error "run-protocol-exchange not run"))
 
+  ;; returns string
   (define (xhash! remote-pk local-pk sharedsecret host-pk)
     (define hash
       (exchange-hash ssh
@@ -579,18 +581,39 @@
 
     hash)
 
+  ;; write the alrogithm prefix
+  (define (alg-ed25519-add blob)
+    (string->blob
+     (wots (ssh-write-string "ssh-ed25519")
+           (ssh-write-string (blob->string blob)))))
+
+  ;; remove the algorithm prefix
+  (define (alg-ed25519-strip pk)
+    (string->blob
+     (wifs (blob->string pk)
+           (let ((alg (ssh-read-string)))
+             (unless (equal? "ssh-ed25519" alg)
+               (error "unsupported algorithm type in host-pk" alg)))
+           (ssh-read-string)))) ;; 32 bytes of raw pk
+
   (define (init-server)
-    (define kexdh-init (read-payload/expect ssh 'kexdh-init))
-    (define client-pk (wifs kexdh-init
-                            (read-byte) ;; ignore payload type
-                            (ssh-read-string)))
+    (define host-pk/ed25519 (alg-ed25519-add (ssh-host-pk ssh)))
+    (define kexdh-init (parse-kexdh-init (read-payload/expect ssh 'kexdh-init)))
+    (define client-pk ;; blob
+      (match kexdh-init
+        (('kexdh-init client-pk) client-pk)))
 
     (define-values (server-sk server-pk) (make-curve25519-keypair))
-    (define sharedsecret (string->mpint (curve25519-dh server-sk client-pk)))
-    (define hash (xhash! client-pk server-pk sharedsecret (ssh-host-pk ssh)))
-    (define signature (substring ((ssh-hostkey-signer ssh) hash) 0 64))
+    (define sharedsecret (string->mpint
+                          (blob->string
+                           (curve25519-dh server-sk client-pk))))
+    (define hash (xhash! client-pk server-pk sharedsecret host-pk/ed25519))
+    (define signature (alg-ed25519-add ;; <-- returns string
+                       (string->blob
+                        (substring ((ssh-hostkey-signer ssh) hash) 0 64))))
 
-    (unparse-kexdh-reply ssh (ssh-host-pk ssh) server-pk signature)
+    (unparse-kexdh-reply ssh host-pk/ed25519 ;; blob
+                         server-pk signature) ;; blob blob
     (values sharedsecret hash))
 
   (define (init-client)
@@ -601,21 +624,27 @@
 
     (define kexdh-reply (payload-parse (read-payload/expect ssh 'kexdh-reply)))
     (match kexdh-reply
+      ;;             blob    blob      blob
       (('kexdh-reply host-pk server-pk signature)
-       (define sharedsecret (string->mpint (curve25519-dh client-sk server-pk)))
+       (define sharedsecret (string->mpint
+                             (blob->string
+                              (curve25519-dh client-sk server-pk))))
        (define hash (xhash! server-pk client-pk sharedsecret host-pk))
+       ;; hash and sharedsecret are strings
+       (let ((handler (ssh-hostkey-verifier ssh)))
 
-       (let ((pkb (string->blob host-pk))
-             (handler (ssh-hostkey-verifier ssh)))
-
-         (if ((asymmetric-verify pkb) (conc signature hash))
-             (if (handler pkb)
+         (if ((asymmetric-verify (alg-ed25519-strip host-pk))
+              (conc (blob->string (alg-ed25519-strip signature)) hash))
+             (if (handler (alg-ed25519-strip host-pk))
                  (begin
-                   (%ssh-host-pk-set! ssh pkb)
+                   (%ssh-host-pk-set! ssh host-pk)
                    (values sharedsecret hash))
                  (begin
                    (error "server hostkey not accepted")))
-             (error "server hostkey signature mismatch"))))))
+             (error "server hostkey signature mismatch "
+                    signature
+                    (alg-ed25519-strip host-pk)
+                    (string->blob hash)))))))
 
   (define-values (sharedsecret hash)
     (if (ssh-server? ssh)

@@ -165,12 +165,12 @@
 (define-parsepair newkeys ())
 
 (define-parsepair kexdh-init
-  ((string client-pk)))
+  ((blob client-pk)))
 
 (define-parsepair kexdh-reply
-  ((signpk ssh-host-pk)
-   (string serverpk)
-   (signpk signature)))
+  ((blob ssh-host-pk)
+   (blob serverpk)
+   (blob signature)))
 
 ;; https://tools.ietf.org/html/rfc4252#section-7
 (define-parsepair userauth-request
