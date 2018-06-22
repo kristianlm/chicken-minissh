@@ -179,9 +179,9 @@
                           (channel-close-all-gochans ch #t)
                           ;; obs: this is actually _not_ thread safe,
                           ;; we might send 'channel-close twice like this :-(
-                          (unparse-channel-close ssh (channel-rcid ch))
-                          (set! (ssh-channel ssh cid) #f))))
-                      (gochan-close (%channel-gochan-data ch)))))))
+                          (unparse-channel-close ssh (channel-rcid ch)))))
+                      (gochan-close (%channel-gochan-data ch))
+                      (set! (ssh-channel ssh cid) #f))))))
 
   (ssh-handle! ssh 'channel-window-adjust
                (lambda (ssh p)
