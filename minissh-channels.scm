@@ -55,11 +55,16 @@
    (gochan 1024) ;; channel-open
    (make-oaat)))
 
+(define (%find-free-cid ssh)
+  (let ((ht (ssh-channels ssh)))
+    (let loop ((n 0))
+      (if (hash-table-ref ht n (lambda () #f))
+          (loop (+ n 1))
+          n))))
+
 (define (make-ssh-channel ssh type rcid lws rws rmax-ps)
   (mutex-lock! (ssh-channels-mutex ssh))
-  (let* ((lcid (+ 1 (hash-table-fold (ssh-channels ssh)
-                                     (lambda (k v s) (max k s))
-                                     -1)))
+  (let* ((lcid (%find-free-cid ssh))
          (ch (%make-ssh-channel ssh type lcid rcid
                                 (gochan 1024) ;; gochan-open-response
                                 (gochan 1024) ;; gochan-cmd
