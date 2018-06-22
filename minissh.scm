@@ -745,31 +745,32 @@
                           (port 22022)
                           (listener (tcp-listen port))
                           (accept tcp-accept)
-                          (spawn thread-start!))
+                          (spawn (lambda (thunk) (thread-start! thunk) #t)))
   (assert (string? server-host-key-public64))
   (assert (blob? server-host-key-secret))
   (let loop ()
     (receive (ip op) (accept listener)
-      (spawn
-       (lambda ()
-         (handle-exceptions
-             e (begin
-                 (close-input-port ip)
-                 (close-output-port op)
-                 ((current-exception-handler) e))
+      (when
+          (spawn
+           (lambda ()
+             (handle-exceptions
+                 e (begin
+                     (close-input-port ip)
+                     (close-output-port op)
+                     ((current-exception-handler) e))
 
-             (define ssh
-               (make-ssh #t
-                         ip op
-                         server-host-key-public64 ;; ssh-host-pk64
-                         (asymmetric-sign server-host-key-secret) ;; ssh-hostkey-signer
-                         #f)) ;; ssh-hostkey-known
-             (run-protocol-exchange ssh)
-             (kexinit-start ssh)
-             (handler ssh)
-             (close-input-port ip)
-             (close-output-port op)))))
-    (loop)))
+                 (define ssh
+                   (make-ssh #t
+                             ip op
+                             server-host-key-public64 ;; ssh-host-pk64
+                             (asymmetric-sign server-host-key-secret) ;; ssh-hostkey-signer
+                             #f)) ;; ssh-hostkey-known
+                 (run-protocol-exchange ssh)
+                 (kexinit-start ssh)
+                 (handler ssh)
+                 (close-input-port ip)
+                 (close-output-port op))))
+        (loop)))))
 
 
 ;; ==================== protocol exchange ====================
