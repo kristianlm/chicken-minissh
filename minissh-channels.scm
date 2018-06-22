@@ -126,9 +126,8 @@
 
 (define (register-channel-handlers! ssh)
   (ensure-ssh-specific! ssh)
-  (define (decrement! ssh cid by)
-    (let* ((ch (ssh-channel ssh cid))
-           (new (- (ssh-channel-ws/read ch) by)))
+  (define (decrement! ch by)
+    (let* ((new (- (ssh-channel-ws/read ch) by)))
       (%ssh-channel-ws/read-set! ch new)))
 
   (ssh-handle! ssh 'disconnect
@@ -148,7 +147,7 @@
                  (match p
                    (('channel-data cid str)
                     (and-let* ((ch (ssh-channel ssh cid (lambda () (ssh-log "bad remote: 'channel-close on dead channel: " cid) #f))))
-                      (decrement! ssh cid (string-length str))
+                      (decrement! ch (string-length str))
                       (gochan-send (%channel-gochan-data ch)
                                    (list str #f)))))))
 
@@ -157,7 +156,7 @@
                  (match p
                    (('channel-extended-data cid str idx)
                     (and-let* ((ch (ssh-channel ssh cid (lambda () (ssh-log "bad remote: 'channel-close on dead channel: " cid) #f))))
-                      (decrement! ssh cid (string-length str))
+                      (decrement! ch (string-length str))
                       (gochan-send (%channel-gochan-data ch)
                                    (list str idx)))))))
 
