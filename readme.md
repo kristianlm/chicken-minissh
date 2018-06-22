@@ -263,10 +263,7 @@ correctly to when the remote side initiates). You can call
 
 ## plus these things
 
-- API: separate ssh-transport and ssh-channels?
-- API: base64 public keys
-- fix: I don't think `(mutex-lock! m 0.1)` pattern will always work
-- benchmark: faster read-string! based channel-inpur-port
+- benchmark: faster read-string! based channel-input-port
 - transport: allow querying current encryption level
 - channels: pty handling?
 - channels: do some buffering (don't send 1-byte SSH packets)
