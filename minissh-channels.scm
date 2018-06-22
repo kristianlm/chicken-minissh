@@ -18,7 +18,6 @@
                      gochan-data
                      gochan-close
                      gochan-window-adjust
-                     cmd
                      max-ps
                      ws/read ws/write) ;; window sizes
   ;; TODO: field for max packet size
@@ -34,7 +33,6 @@
   (gochan-data             %channel-gochan-data)
   (gochan-close            %channel-gochan-close)
   (gochan-window-adjust    %channel-gochan-window-adjust)
-  (cmd                     %channel-cmd %channel-cmd-set!)
   (max-ps      ssh-channel-max-ps)
   (ws/read  ssh-channel-ws/read  %ssh-channel-ws/read-set!)
   (ws/write ssh-channel-ws/write %ssh-channel-ws/write-set!))
@@ -72,7 +70,6 @@
                                 (gochan 1024) ;; gochan-data
                                 (gochan 1024) ;; gochan-close
                                 (gochan 1024) ;; gochan-window-adjust
-                                'unset ;; %channel-cmd (#f for shell)
                                 rmax-ps lws rws)))
     (set! (ssh-channel ssh lcid) ch)
     (mutex-unlock! (ssh-channels-mutex ssh))
