@@ -22,5 +22,9 @@
       (and (equal? user "guest")
            (equal? password "1234")))
     banner:
-    (lambda (user)
-      (unparse-userauth-banner ssh (conc "Welcome, '" user "'\n") "")))))
+    (lambda (user granted? pk64)
+      (if (equal? user "guest")
+          (if granted? "Welcome!\n" "Try with password '1234'\n")
+          (if granted? (error "this should never happen")
+              (conc "Won't allow user '" user "'\n"
+                    "Try guest\n")))))))

@@ -41,5 +41,5 @@
       (print "your publickey:\n" pk64 " vs expected:\n" user-pk)
       (equal? pk64 user-pk))
     banner:
-    (lambda (user)
-      (unparse-userauth-banner ssh (conc "Welcome, '" user "'\n") "")))))
+    (lambda (user granted? pk64)
+      (if granted? (conc "Welcome, '" user "'\n") #f)))))

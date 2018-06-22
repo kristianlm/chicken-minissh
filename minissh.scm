@@ -828,11 +828,15 @@
   ((asymmetric-verify (alg-ed25519-strip (pk64->pk pk64)))
    (conc (blob->string (alg-ed25519-strip signature)) signature*)))
 
-;; publickey must return true if a (user pk) login would be ok (can be called multiple times)
+;; publickey must return true if a (user pk) login would be ok (can be
+;; called multiple times)
+;;
 ;; password must return true if (user password) loging would be ok
-;; banner gets called after successful authenticaion, but before sending 'userauth-success
+;;
+;; banner gets called after granting or denying access
 (define (userauth-accept ssh
-                         #!key publickey password banner
+                         #!key publickey password
+                         (banner (lambda (user granted? pk64) #f))
                          (unhandled
                           (lambda (x continue)
                             (ssh-log-ignore/parsed ssh x)
@@ -862,6 +866,8 @@
               (unparse-userauth-pk-ok ssh "ssh-ed25519" pk64)
               (loop))
              (else
+              (cond ((banner user #f pk64) =>
+                     (lambda (str) (unparse-userauth-banner ssh str ""))))
               (fail!)
               (loop))))
       ;; login with pk and signature
@@ -874,22 +880,28 @@
                                     " most likely a bug in chicken-minissh.\n") "")
                          #f))
                    (publickey user 'ssh-ed25519 pk64 #t))
-              (if banner (banner user))
               (%ssh-user-set! ssh user)
               (%ssh-user-pk-set! ssh pk64)
+              (cond ((banner user #t pk64) =>
+                     (lambda (str) (unparse-userauth-banner ssh str ""))))
               (unparse-userauth-success ssh))
              ;; success, no loop ^
              (else
+              (cond ((banner user #f pk64) =>
+                     (lambda (str) (unparse-userauth-banner ssh str ""))))
               (fail!)
               (loop))))
       ;; password login
       (('userauth-request user "ssh-connection" 'password #f plaintext-password)
        (cond ((and password (password user plaintext-password))
-              (if banner (banner user))
               (%ssh-user-set! ssh user)
+              (cond ((banner user #t #f) =>
+                     (lambda (str) (unparse-userauth-banner ssh str ""))))
               (unparse-userauth-success ssh))
              ;; success, no loop ^
              (else
+              (cond ((banner user #f #f) =>
+                     (lambda (str) (unparse-userauth-banner ssh str ""))))
               (fail!)
               (loop))))
       ;; invalid log                             ,-- eg. 'none
