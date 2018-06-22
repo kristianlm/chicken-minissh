@@ -249,7 +249,7 @@
 
 
 ;; get (or wait for) exec/shell channel-request command
-(define (channel-cmd ch)
+(define (channel-command ch)
   (define chan-cmd (%channel-gochan-cmd ch))
 
   (let loop ()
@@ -281,7 +281,7 @@
                                                   lws lmax-ps)
                 ;; force server to process exec/shell requests
                 ;; immediately to avoid hangs on client-side
-               (channel-cmd ch)
+               (channel-command ch)
                ch)))))
      (else (ssh-do-handlers! ssh)
            (loop)))))

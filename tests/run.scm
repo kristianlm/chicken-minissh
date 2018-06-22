@@ -123,7 +123,7 @@
   (print "============================================================")
 
   (let ((ch (channel-accept ssh)))
-    (test "my command" (channel-cmd ch))
+    (test "my command" (channel-command ch))
     (thread-start!
      (lambda ()
        (ssh-log "STARTING")
@@ -188,7 +188,7 @@
 (userauth-publickey ssh "minissh" client-pk client-sk)
 
 (define ch (channel-exec ssh "my command"))
-(test "channel cmd loopback"  "my command" (channel-cmd ch))
+(test "channel cmd loopback"  "my command" (channel-command ch))
 (test "channel read" "hello world\n" (channel-read ch))
 
 

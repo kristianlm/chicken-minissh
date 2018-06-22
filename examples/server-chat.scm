@@ -97,7 +97,7 @@
        (lambda ()
          (with-channel-ports
           ch (lambda ()
-               (if (equal? (channel-cmd ch) "chat")
+               (if (equal? (channel-command ch) "chat")
                    (handle-chat ssh)
-                   (print "unknown command: " (channel-cmd ch) ", try chat")))))))
+                   (print "unknown command: " (channel-command ch) ", try chat")))))))
     (lambda () (channel-accept ssh)))))
