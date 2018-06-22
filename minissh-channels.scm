@@ -188,7 +188,7 @@
                  (match p
                    (('channel-window-adjust cid increment)
                     ;; already in ssh's handler mutex
-                    (and-let* ((ch (ssh-channel ssh cid (lambda () (ssh-log "bad remote: 'channel-window-adjust on dead channel: " cid)))))
+                    (and-let* ((ch (ssh-channel ssh cid (lambda () (ssh-log "bad remote: 'channel-window-adjust on dead channel: " cid) #f))))
                       (%ssh-channel-ws/write-set!
                        ch (+ (ssh-channel-ws/write ch) increment))
 
