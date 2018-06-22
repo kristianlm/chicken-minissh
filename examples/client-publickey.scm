@@ -4,6 +4,7 @@
 ;; the default /dev/random causes hangs
 (use tweetnacl) (current-entropy-port (open-input-file "/dev/urandom"))
 
+;; generated with (ssh-keygen 'ed25519)
 (define pk "AAAAC3NzaC1lZDI1NTE5AAAAIHqxQfb1habVfT2eC9LfKyXq84k1aU+ylV8qwVPeeyxv")
 (define sk
   #${6f3404cc41d9e4b0c98f708f222706ac1c4d5bf9d2dadaad128abbcda763062a
