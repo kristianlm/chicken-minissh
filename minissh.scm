@@ -838,6 +838,9 @@
                             (ssh-log-ignore/parsed ssh x)
                             (continue))))
 
+  (unless (or publickey password)
+    (error 'userauth-accept "must supply either publickey or password"))
+
   (define (fail! #!optional partial?)
     (define auths
       (append (if publickey '("publickey") '())
