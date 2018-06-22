@@ -127,11 +127,9 @@
     (thread-start!
      (lambda ()
        (ssh-log "STARTING")
-       (with-channel-ports
-        ch (lambda ()
-             (display "abc") (set! here 1)
-             (display "def") (set! here 2)
-             (display "ghi") (set! here 3))))))
+       (channel-write ch "abc") (set! here 1)
+       (channel-write ch "def") (set! here 2)
+       (channel-write ch "ghi") (set! here 3))))
 
   ;; loop throuhg all incoming data etc
   (port-for-each values (lambda () (channel-accept ssh)))
