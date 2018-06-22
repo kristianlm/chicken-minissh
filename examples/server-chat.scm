@@ -1,4 +1,4 @@
-(use minissh nrepl gochan base64)
+(use minissh nrepl gochan)
 
 ;; the default /dev/random causes hangs
 (use tweetnacl) (current-entropy-port (open-input-file "/dev/urandom"))
@@ -37,7 +37,7 @@
 (define (print-users)
   (hash-table-for-each
    _userpks
-   (lambda (user pk) (print (base64-encode pk) " " user))))
+   (lambda (user pk) (print pk " " user))))
 
 (define (handle-chat ssh)
 
