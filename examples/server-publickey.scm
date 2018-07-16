@@ -1,4 +1,4 @@
-(use minissh base64)
+(use minissh)
 
 ;; the default /dev/random causes hangs
 (use tweetnacl) (current-entropy-port (open-input-file "/dev/urandom"))
