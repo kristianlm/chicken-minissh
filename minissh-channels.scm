@@ -448,8 +448,12 @@
          (##sys#with-print-length-limit ;; <-- avoid ##sys#print exits
           #f (lambda () (channel-write ch str 'stderr)))))
      (lambda ()
-       (channel-eof ch)
-       (channel-close ch)))))
+       (handle-exceptions e
+         ;; again, avoid infinite loops
+         (begin (parameterize ((current-error-port cep))
+                  ((current-exception-handler) e)))
+         (channel-eof ch)
+         (channel-close ch))))))
 
 (define (with-channel-ports ch thunk)
   (parameterize ((current-output-port (channel-output-port ch))
