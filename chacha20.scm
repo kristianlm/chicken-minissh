@@ -1,4 +1,9 @@
-(use srfi-4)
+(cond-expand
+ (chicken-5
+  (import srfi-4
+          (only (chicken blob) blob-size)))
+ (else
+  (use srfi-4)))
 
 (foreign-declare "#include \"chacha20-impl.c\"")
 

@@ -1,0 +1,18 @@
+;; -*- scheme -*-
+((author "Kristian Lein-Mathisen")
+ (synopsis "An SSH-2 server and client implementation")
+ (license "BSD")
+ (test-dependencies test matchable)
+ (dependencies matchable tweetnacl queues
+               gochan base64 srfi-18 srfi-69
+               message-digest-utils sha2)
+ (category net)
+ (components (extension minissh
+                        (source "minissh-module5.scm")
+                        (source-dependencies
+                         "minissh.scm" "minissh-module5.scm"
+                         "minissh-client.scm"
+                         "minissh-channels.scm"
+                         "minissh-parsing.scm"
+                         "oaat.scm"
+                         "chacha20.scm" "chacha20-impl.c" "chacha20-impl.h"))))

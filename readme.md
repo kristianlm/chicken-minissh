@@ -11,7 +11,8 @@ supports a limited suite of ciphers. Not enough to be standards
 compliant, but enough to work with [OpenSSH] versions [6.5 and
 above](https://www.openssh.com/txt/release-6.5) from 2013.
 
-`minissh` is intended to be compliant with [OpenSSH] and itself.
+`minissh` is intended to be compliant with [OpenSSH] and itself. It
+runs on [CHICKEN] versions 4 and 5.
 
 ## Compatibility
 

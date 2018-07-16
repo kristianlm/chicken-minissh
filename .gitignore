@@ -1,3 +1,7 @@
 /minissh.import.so
 /minissh.import.scm
 /minissh.so
+/minissh.build.sh
+/minissh.install.sh
+/minissh.link
+/minissh.static.o

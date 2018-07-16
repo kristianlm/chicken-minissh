@@ -1,15 +1,37 @@
-(use tcp srfi-18 srfi-69 srfi-13 ports
-     (only tweetnacl asymmetric-box-secretkeybytes current-entropy-port
-           asymmetric-sign asymmetric-verify
-           symmetric-verify symmetric-sign scalarmult*
-           make-asymmetric-sign-keypair)
-     (only sha2 sha256-primitive)
-     (only message-digest message-digest-string)
-     (only matchable match)
-     (only data-structures conc intersperse rassoc string-split
-           make-queue queue-add! queue-remove! queue-empty?)
-     (only extras read-string read-line read-byte write-byte)
-     (only base64 base64-decode base64-encode))
+(cond-expand
+ (chicken-5
+  (import srfi-18 srfi-69 srfi-13
+          (chicken tcp)
+          (only queues make-queue queue-add! queue-remove! queue-empty?)
+          (only (chicken port) with-output-to-string with-input-from-string
+                with-output-to-port
+                port-fold)
+          (only (chicken string) conc string-split)
+          (only (chicken blob) blob-size string->blob blob->string blob?)
+          (only (chicken io) read-line write-byte read-byte read-string)
+          (only (chicken bitwise) arithmetic-shift)
+          (only (chicken condition) handle-exceptions current-exception-handler)
+          (only tweetnacl asymmetric-box-secretkeybytes current-entropy-port
+                asymmetric-sign asymmetric-verify
+                symmetric-verify symmetric-sign scalarmult*
+                make-asymmetric-sign-keypair)
+          (only message-digest-byte-vector message-digest-string)
+          (only sha2 sha256-primitive)
+          (only matchable match)
+          (only base64 base64-decode base64-encode)))
+ (else
+  (use tcp srfi-18 srfi-69 srfi-13 ports
+       (only tweetnacl asymmetric-box-secretkeybytes current-entropy-port
+             asymmetric-sign asymmetric-verify
+             symmetric-verify symmetric-sign scalarmult*
+             make-asymmetric-sign-keypair)
+       (only sha2 sha256-primitive)
+       (only message-digest message-digest-string)
+       (only matchable match)
+       (only data-structures conc intersperse rassoc string-split
+             make-queue queue-add! queue-remove! queue-empty?)
+       (only extras read-string read-line read-byte write-byte)
+       (only base64 base64-decode base64-encode))))
 
 (define-syntax wots
   (syntax-rules ()
@@ -55,7 +77,7 @@
   (ssh-log "ssh ignr #" (ssh-seqnum/write ssh) ": " (car parsed)
            " " (wots (write parsed))))
 
-(define-record-type ssh
+(define-record-type <ssh>
   (%make-ssh server?
              ip op
              ;; base64-string procedure      procedure
@@ -94,7 +116,7 @@
   (channels       ssh-channels)
   (channels-mutex ssh-channels-mutex))
 
-(define-record-printer ssh
+(define-record-printer <ssh>
   (lambda (ssh p)
     (display "#<ssh " p)
     (display (ssh-user ssh) p)

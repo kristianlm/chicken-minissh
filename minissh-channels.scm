@@ -1,8 +1,20 @@
-(use matchable gochan
-     (only srfi-13 string-null?)
-     (only srfi-69 make-hash-table hash-table-ref hash-table-set! hash-table-fold)
-     (only ports make-input-port make-output-port)
-     (only srfi-18 make-mutex))
+;; also depends on imports from minissh.scm
+(cond-expand
+ (chicken-5
+  (import
+   matchable gochan
+   (only (chicken port) make-output-port make-input-port)
+   (only srfi-13 string-null?)
+   (only srfi-69 make-hash-table hash-table-ref hash-table-set! hash-table-fold)
+   (only (chicken port) make-input-port make-output-port)
+   (only srfi-18 make-mutex)))
+ (else
+  (use
+   matchable gochan
+   (only srfi-13 string-null?)
+   (only srfi-69 make-hash-table hash-table-ref hash-table-set! hash-table-fold)
+   (only ports make-input-port make-output-port)
+   (only srfi-18 make-mutex))))
 
 (include "oaat.scm")
 
@@ -10,7 +22,7 @@
 (define current-max-ps      (make-parameter 32767))
 
 ;; multiple channel objects per session object
-(define-record-type ssh-channel
+(define-record-type <ssh-channel>
   (%make-ssh-channel ssh type  ;; type is almost always "session"
                      lcid rcid ;; same id for sender and receiver
                      gochan-open-response
@@ -38,7 +50,7 @@
   (ws/write ssh-channel-ws/write %ssh-channel-ws/write-set!))
 
 ;; single ssh-channel-context object per ssh session object
-(define-record-type ssh-channel-context
+(define-record-type <ssh-channel-context>
   (%make-ssh-channel-context handlers
                              gochan-open
                              oaat)

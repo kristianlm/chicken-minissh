@@ -1,5 +1,5 @@
 ;; -*- scheme -*-
-(compile -s  -J minissh-module.scm -o minissh.so)
+(compile -s  -J minissh-module4.scm -o minissh.so)
 (compile -s minissh.import.scm)
 (install-extension 'minissh '("minissh.so" "minissh.import.so"))
 
