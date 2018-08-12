@@ -18,6 +18,7 @@
 (ssh-server-start
  host-pk host-sk
  (lambda (ssh)
+   (eval `(set! ssh ',ssh))
    (userauth-accept ssh password: (lambda _ #t) publickey: (lambda _ #t))
    (tcp-read-timeout #f)
    (port-for-each
@@ -28,5 +29,5 @@
           ch (lambda ()
                (print "try ssh, (ssh-user ssh), (ssh-user-pk ssh)"
                       " or (kexinit-start ssh)")
-               (nrepl-loop eval: (lambda (x) (eval `(let ((ssh ',ssh)) ,x)))))))))
+               (nrepl-loop))))))
     (lambda () (channel-accept ssh)))))
