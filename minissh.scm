@@ -53,8 +53,12 @@
     (lambda args
       (when (ssh-log?)
         (with-output-to-port cep
-          (lambda () (apply print (cons (thread-name (current-thread))
-                                        (cons " " args)))))))))
+          (lambda ()
+            (apply print (cons (thread-name (current-thread))
+                               (cons " " args)))
+            (cond-expand ;; seems stderr doesn't flush on \n on windows
+             (windows (flush-output))
+             (else))))))))
 
 ;; overrride with shorter version
 (define (ssh-log-recv ssh payload)
