@@ -3,9 +3,16 @@
  (synopsis "An SSH-2 server and client implementation")
  (license "BSD")
  (test-dependencies test matchable)
- (dependencies matchable tweetnacl queues
-               gochan base64 srfi-18 srfi-69
-               message-digest-utils sha2)
+ (dependencies tweetnacl
+               matchable
+               gochan
+               base64
+               queues
+               srfi-13
+               srfi-18
+               srfi-69
+               message-digest-utils
+               sha2)
  (category net)
  (components (extension minissh
                         (source "minissh-module5.scm")

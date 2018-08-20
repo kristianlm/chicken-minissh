@@ -2,5 +2,5 @@
 ((author "Kristian Lein-Mathisen")
  (license "BSD")
  (test-depends test base64)
- (depends matchable tweetnacl sha2 message-digest gochan base64)
+ (depends tweetnacl matchable gochan base64 message-digest sha2)
  (category net))
