@@ -16,8 +16,9 @@ runs on [CHICKEN] versions 4 and 5.
 
 ## Compatibility
 
-`minissh` servers will only accept [ssh-ed25519] user keys, so
-[OpenSSH] clients will have to do `ssh-keygen -t ed25519`.
+`minissh` servers will only accept [ssh-ed25519] user keys.
+So to get public-key login to work from [OpenSSH], you probably have to run
+`ssh-keygen -t ed25519` first (the command, not the procedure documented here).
 
 `minissh` clients will only work with servers which have [ssh-ed25519]
 host-keys. These are generated on recent versions of [OpenSSH] by
