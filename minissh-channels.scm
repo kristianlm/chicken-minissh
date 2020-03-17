@@ -204,7 +204,7 @@
                       ;; we send #t on a channel just to "kick" blocked senders
                       (gochan-send (%channel-gochan-window-adjust ch) #t)))))))
 
-(define (register-server-handlers! ssh)
+(define (register-server-handlers! ssh shell exec pty-req)
   (register-channel-handlers! ssh)
   (ssh-handle! ssh 'channel-open
                (lambda (ssh p) (gochan-send (%ssh-gochan-channel-open ssh) p)))
@@ -214,19 +214,22 @@
                  (match p
 
                    (('channel-request cid 'exec want-reply? cmd)
-                    (when want-reply?
-                      (unparse-channel-success ssh (channel-rcid (ssh-channel ssh cid))))
+                    (if exec (exec (channel-rcid (ssh-channel ssh cid)) p)
+                        (when want-reply?
+                          (unparse-channel-success ssh (channel-rcid (ssh-channel ssh cid)))))
                     (gochan-close (%channel-gochan-cmd (ssh-channel ssh cid)) cmd))
 
                    (('channel-request cid 'shell want-reply?)
-                    (when want-reply?
-                      (unparse-channel-success ssh (channel-rcid (ssh-channel ssh cid))))
+                    (if shell (shell (channel-rcid (ssh-channel ssh cid)) p)
+                        (when want-reply?
+                          (unparse-channel-success ssh (channel-rcid (ssh-channel ssh cid)))))
                     ;; hack of the month! pretend #f is #t since "close flag" can't be #f
                     (gochan-close (%channel-gochan-cmd (ssh-channel ssh cid)) #t))
 
                    (('channel-request cid _ want-reply? . rest)
-                    (when want-reply?
-                      (unparse-channel-failure ssh (channel-rcid (ssh-channel ssh cid)))))))))
+                    (if pty-req (pty-req (channel-rcid (ssh-channel ssh cid)) p)
+                        (when want-reply?
+                          (unparse-channel-failure ssh (channel-rcid (ssh-channel ssh cid))))))))))
 
 (define (register-client-handlers! ssh)
   (register-channel-handlers! ssh)
@@ -274,9 +277,9 @@
            (loop)))))
 
 ;; block and wait for channel-open
-(define (channel-accept ssh)
+(define (channel-accept ssh #!key shell exec pty-req)
   (define chan-open (%ssh-gochan-channel-open ssh))
-  (register-server-handlers! ssh)
+  (register-server-handlers! ssh shell exec pty-req)
 
   ;; allow channel-close, channel-eof, channel-request
   (let loop ()
