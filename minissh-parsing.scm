@@ -264,7 +264,7 @@
           (uint32 height/rows)
           (uint32 width/pixels)
           (uint32 height/pixels)
-          (string modes)]
+          (blob modes)]
 
          ;; TODO: x11-req
          [(eq? request-type 'env)
