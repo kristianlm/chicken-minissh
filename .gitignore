@@ -5,3 +5,8 @@
 /minissh.install.sh
 /minissh.link
 /minissh.static.o
+/minissh.core.import.scm
+/minissh.core.import.so
+/minissh.core.link
+/minissh.core.so
+/minissh.core.static.o

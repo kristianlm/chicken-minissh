@@ -5,7 +5,8 @@
         (chicken port)
         (chicken string)
         (chicken io)
-        (chicken condition))
+        (chicken condition)
+        (chicken tcp))
 
 (define %current-ssh-rcid   (make-parameter #f)) (define %current-ssh-lcid   (make-parameter #f))
 (define %current-ssh-rws    (make-parameter #f)) (define %current-ssh-lws    (make-parameter (* 1 1024)))

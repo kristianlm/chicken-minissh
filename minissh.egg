@@ -14,12 +14,20 @@
                message-digest-utils
                sha2)
  (category net)
- (components (extension minissh
+ (components (extension minissh.core
+                        (source "minissh.core-module.scm")
+                        (source-dependencies
+                         "minissh.core.scm"
+                         "minissh.core-chacha20.scm" "chacha20-impl.c" "chacha20-impl.h"
+                         "minissh.core-parsing.scm"
+                         "minissh.core-client.scm"
+                         "oaat.scm"))
+             ;; we could've done minissh.channel but I feel that all
+             ;; the channel stuff is really what needs to be
+             ;; accessible. so the core is tucked away as this
+             ;; top-level is what most people will be using
+             (extension minissh
+                        (component-dependencies minissh.core)
                         (source "minissh-module.scm")
                         (source-dependencies
-                         "minissh.scm"
-                         "minissh-client.scm"
-                         "minissh-channels.scm"
-                         "minissh-parsing.scm"
-                         "oaat.scm"
-                         "chacha20.scm" "chacha20-impl.c" "chacha20-impl.h"))))
+                         "minissh-channels.scm"))))
