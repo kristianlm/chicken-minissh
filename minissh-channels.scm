@@ -23,7 +23,7 @@
 (define (gochan->input-port gochan)
   (let ((buffer "") (pos 0)) ;; buffer is #f for #!eof
     (make-input-port
-     (lambda ()
+     (lambda () ;; read
        (let loop ()
          (if (>= pos (string-length buffer))
              (gochan-select
@@ -37,7 +37,7 @@
              (let ((c (string-ref buffer pos)))
                (set! pos (+ 1 pos))
                c))))
-     (lambda ()
+     (lambda () ;; ready?
        (let loop ()
          (if (>= pos (string-length buffer))
              #t
@@ -100,6 +100,7 @@
 
                (current-input-port (gochan->input-port (current-datachan)))
 
+               ;; TODO: make this robust somehow.
                ;; (current-error-port
                ;;  (make-output-port
                ;;   (lambda (str) (gochan-send chan-output `(data ,(%current-ssh-rcid) ,str 1)))
@@ -140,6 +141,7 @@
                            width/pixels height/pixels ;; numbers, usuall 0
                            modes)                     ;; blob
          ;; TODO: make denying this possible
+         ;; TODO: give this as an event to channel-thread
          (let ((v (hash-table-ref lcid->state lcid)))
            (vector-set! v 1 width/characters)
            (vector-set! v 2 height/rows)
