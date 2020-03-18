@@ -15,9 +15,9 @@
                sha2)
  (category net)
  (components (extension minissh
-                        (source "minissh-module5.scm")
+                        (source "minissh-module.scm")
                         (source-dependencies
-                         "minissh.scm" "minissh-module5.scm"
+                         "minissh.scm"
                          "minissh-client.scm"
                          "minissh-channels.scm"
                          "minissh-parsing.scm"
