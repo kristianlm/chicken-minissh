@@ -197,6 +197,17 @@
          (when want-reply?
            (unparse-channel-success ssh (hash-table-ref lcid->rcid lcid))))
 
+        (('channel-request lcid 'window-change want-reply?
+                           width/characters height/rows ;; numbers
+                           width/pixels     height/pixels)  ;; numbers, usuall 0
+
+         ;; TODO: give this as an event to channel-thread
+         (let ((v (hash-table-ref lcid->state lcid)))
+           (vector-set! v 1 width/characters)
+           (vector-set! v 2 height/rows))
+         (when want-reply?
+           (unparse-channel-success ssh (hash-table-ref lcid->rcid lcid))))
+
         (('channel-request lcid 'shell want-reply?)
          ;; TODO: make denying this possible
          ;; TODO: ensure ssh-op isn't closed before trying to write (we see many Broken pipe errors)
