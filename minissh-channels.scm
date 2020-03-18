@@ -10,10 +10,7 @@
 (define %current-ssh-rcid   (make-parameter #f)) (define %current-ssh-lcid   (make-parameter #f))
 (define %current-ssh-rws    (make-parameter #f)) (define %current-ssh-lws    (make-parameter (* 1 1024)))
 (define %current-ssh-rmps   (make-parameter #f)) (define %current-ssh-lmps   (make-parameter 32767))
-(define %current-ssh-chan  (make-parameter #f))
-(define current-ssh-user   (make-parameter #f))
-(define current-ssh-userpk (make-parameter #f))
-(define current-datachan   (make-parameter #f))
+(define %current-datachan   (make-parameter #f))
 
 (define %current-ssh-state (make-parameter (vector #f #f #f #f)))
 (define (current-ssh-command)     (vector-ref (%current-ssh-state) 0))
@@ -50,7 +47,9 @@
     ;;                  ,-- remote port number
     (conc "minissh@" (cadr (receive (tcp-port-numbers (ssh-ip ssh)))))))
 
-  ;; we need chan-output when we must notify of bigger window size.
+  ;; make an input-port out of gochan. gochan transfers data from user
+  ;; app threads to our main thread. we need chan-output because
+  ;; sometimes we notify remote end of bigger window size.
   (define (gochan->input-port gochan)
 
     (let ((buffer "") (pos 0)) ;; buffer is #f for #!eof
@@ -145,9 +144,9 @@
                (%current-ssh-rmps rmax-ps)
                (%current-ssh-lcid lcid)
                (%current-ssh-state state) ;; read-only from this thread
-               (current-datachan datachan)
+               (%current-datachan datachan)
 
-               (current-input-port (gochan->input-port (current-datachan)))
+               (current-input-port (gochan->input-port (%current-datachan)))
 
                ;; TODO: make this robust somehow.
                ;; (current-error-port

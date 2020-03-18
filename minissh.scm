@@ -54,13 +54,11 @@
       (when (ssh-log?)
         (with-output-to-port cep
           (lambda ()
-            (apply print (cons (thread-name (current-thread))
-                               (cons " " args)))
+            (apply print args)
             (cond-expand ;; seems stderr doesn't flush on \n on windows
              (windows (flush-output))
              (else))))))))
 
-;; overrride with shorter version
 (define (ssh-log-recv ssh payload)
   (if (ssh-log-payload?)
       (ssh-log "ssh recv #" (ssh-seqnum/read ssh) ": " (payload-type payload)
