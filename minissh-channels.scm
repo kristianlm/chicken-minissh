@@ -245,7 +245,6 @@
         (('data rcid data idx)
          (unparse-channel-extended-data ssh rcid idx data))
         (('close rcid)
-         (print "CLOSING CLOSING " rcid)
          (unparse-channel-eof ssh rcid)
          (unparse-channel-close ssh rcid))
         (('lws rcid increment)

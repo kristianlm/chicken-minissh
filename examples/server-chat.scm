@@ -1,11 +1,8 @@
-(cond-expand
- (chicken-5 (import minissh nrepl gochan tweetnacl
-                    srfi-69 srfi-18
-                    (chicken tcp) (chicken port) (chicken io) (chicken condition)))
- (else (use minissh nrepl gochan tweetnacl)))
+(import minissh nrepl gochan tweetnacl
+        srfi-69 srfi-18
+        (chicken tcp) (chicken port) (chicken io) (chicken condition))
 
-;; the default /dev/random causes hangs
-(current-entropy-port (open-input-file "/dev/urandom"))
+;; TODO: timestamp messages
 
 ;; the secret key would normally be kept safe
 (define host-pk
@@ -43,9 +40,9 @@
    _userpks
    (lambda (user pk) (print pk " " user))))
 
-(define (handle-chat ssh)
+(define (handle-chat user pk)
 
-  (gochan-send msgs (list (ssh-user ssh) 'join))
+  (gochan-send msgs (list user 'join))
 
   (print ";; Welcome to secure CHICKEN chat")
   (print ";; This might have been secure if the secret key wasn't committed.")
@@ -54,7 +51,7 @@
   (print ";; Type (users) to see list of users")
 
   (define (prompt)
-    (display (ssh-user ssh))
+    (display user)
     (display "> "))
 
   (define alive (gochan 0))
@@ -67,10 +64,10 @@
        (unless (eof-object? msg)
          (if (equal? "(users)" msg)
              (print-users)
-             (gochan-send msgs (list (ssh-user ssh) msg)))
+             (gochan-send msgs (list user msg)))
          (thread-sleep! 0.1) ;; async gets nasty quickly
          (loop))
-       (gochan-send msgs (list (ssh-user ssh) 'eof))
+       (gochan-send msgs (list user 'eof))
        (gochan-close alive))))
 
   (let loop ()
@@ -84,7 +81,6 @@
 (ssh-server-start
  host-pk host-sk
  (lambda (ssh)
-
    (userauth-accept ssh
                     publickey:
                     (lambda (user type pk signed?)
@@ -94,14 +90,7 @@
                                       (set! (userpk user) pk))
                                   pk)
                           #t)))
-   (tcp-read-timeout #f)
-   (port-for-each
-    (lambda (ch)
-      (thread-start!
-       (lambda ()
-         (with-channel-ports
-          ch (lambda ()
-               (if (equal? (channel-command ch) "chat")
-                   (handle-chat ssh)
-                   (print "unknown command: " (channel-command ch) ", try chat")))))))
-    (lambda () (channel-accept ssh)))))
+   (channels-accept
+    ssh (lambda ()
+           ;; TODO: make exec cmd available somewhere
+          (handle-chat (ssh-user ssh) (ssh-user-pk ssh))))))

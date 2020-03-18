@@ -27,16 +27,17 @@ then run client like this:
  (let ((op (current-output-port)))
    (lambda (ssh)
      (userauth-accept ssh password: (lambda _ #t) publickey: (lambda _ #t))
-     (call/cc exit
-              (channels-accept
-               ssh (lambda ()
-                     (let ((buff (make-string (* 1024 1024))))
-                      (let loop ()
-                        (let ((read (read-string! #f buff)))
-                          (unless (= 0 read)
-                            (display (if (= read (string-length buff)) buff (substring buff 0 read)) op)
-                            (loop)))))
-                     (exit))))))
+     (call/cc
+      (lambda (exit)
+        (channels-accept
+         ssh (lambda ()
+               (let ((buff (make-string (* 1024 1024))))
+                 (let loop ()
+                   (let ((read (read-string! #f buff)))
+                     (unless (= 0 read)
+                       (display (if (= read (string-length buff)) buff (substring buff 0 read)) op)
+                       (loop)))))
+               (exit #f)))))))
  ;; OBS! undocumented API! prevent spawn a new thread, and exit after
  ;; handling first session.
  spawn: (lambda (thunk) (thunk) #f))
