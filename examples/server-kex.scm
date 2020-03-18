@@ -1,10 +1,5 @@
-(cond-expand
- (chicken-5 (import minissh nrepl matchable tweetnacl
-                    (chicken tcp) (chicken port)))
- (else (use minissh nrepl matchable tweetnacl)))
-
-;; the default /dev/random causes hangs
-(current-entropy-port (open-input-file "/dev/urandom"))
+(import minissh nrepl matchable tweetnacl
+        (chicken tcp) (chicken port))
 
 ;; the secret key would normally be kept safe
 (define host-pk
@@ -25,14 +20,10 @@ test with: ssh localhost -p 22022 kex # any user, any passsord")
  host-pk host-sk
  (lambda (ssh)
    (userauth-accept ssh password: (lambda _ #t) publickey: (lambda _ #t))
-   (tcp-read-timeout #f)
-   (port-for-each
-     (lambda (ch)
-       (with-channel-ports
-        ch (lambda ()
-             (let loop ((n 0))
-               (print "kex " n)
-               (ssh-log "calling kexinit-start")
-               (kexinit-start ssh)
-               (loop (+ n 1))))))
-     (lambda () (channel-accept ssh)))))
+   (channels-accept ssh
+                    (lambda ()
+                      (let loop ((n 0))
+                        (print "kex " n)
+                        (ssh-log "calling kexinit-start")
+                        (kexinit-start ssh)
+                        (loop (+ n 1)))))))

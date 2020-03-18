@@ -1,9 +1,4 @@
-(cond-expand
- (chicken-5 (import minissh tweetnacl srfi-18 (chicken tcp) (chicken port)))
- (else (use minissh tweetnacl)))
-
-;; the default /dev/random causes hangs
-(current-entropy-port (open-input-file "/dev/urandom"))
+(import minissh tweetnacl srfi-18 (chicken tcp) (chicken port))
 
 ;; the secret key would normally be kept safe
 (define host-pk
@@ -18,14 +13,10 @@
  host-pk host-sk
  (lambda (ssh)
    (userauth-accept ssh password: (lambda _ #t) publickey: (lambda _ #t))
-   (tcp-read-timeout #f)
-   (port-for-each
-    (lambda (ch)
-      (thread-start!
-       (lambda ()
-         (define s (make-string (* 32 1024) #\.))
-         (let loop ((n 1))
-           (ssh-log "step " n)
-           (channel-write ch s)
-           (loop (+ 1 n))))))
-    (lambda () (channel-accept ssh)))))
+   (channels-accept ssh
+                    (lambda ()
+                      (define s (make-string (* 32 1024) #\.))
+                      (let loop ((n 1))
+                        (ssh-log "step " n)
+                        (print s)
+                        (loop (+ 1 n)))))))
