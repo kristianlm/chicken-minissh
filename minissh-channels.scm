@@ -84,8 +84,8 @@
              (if (>= pos (string-length buffer))
                  #t
                  #f) ;;; <-- TODO: gochan-select with 0 timeout
-             #t)) ;; <-- eof is always ready
-       (lambda () ;; close
+             #t))    ;; <-- eof is always ready
+       (lambda ()    ;; close
          (gochan-close gochan))
        (lambda () ;; peek
          (fill!)
@@ -207,7 +207,7 @@
 
         (('channel-request lcid 'window-change want-reply?
                            width/characters height/rows ;; numbers
-                           width/pixels     height/pixels)  ;; numbers, usuall 0
+                           width/pixels     height/pixels) ;; numbers, usuall 0
 
          ;; TODO: give this as an event to channel-thread
          (let ((v (hash-table-ref lcid->state lcid)))
