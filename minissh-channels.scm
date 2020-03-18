@@ -45,7 +45,7 @@
             (gochan-send chan-network-read msg)
             (loop)))))
     ;;                  ,-- remote port number
-    (conc "minissh@" (cadr (receive (tcp-port-numbers (ssh-ip ssh)))))))
+    (conc "minissh:" (cadr (receive (tcp-port-numbers (ssh-ip ssh)))))))
 
   ;; make an input-port out of gochan. gochan transfers data from user
   ;; app threads to our main thread. we need chan-output because
@@ -137,51 +137,59 @@
             lcid->thread
             lcid
             (thread-start!
-             (lambda ()
+             (make-thread
+              (lambda ()
 
-               (%current-ssh-rcid rcid)
-               (%current-ssh-rws  rws)
-               (%current-ssh-rmps rmax-ps)
-               (%current-ssh-lcid lcid)
-               (%current-ssh-state state) ;; read-only from this thread
-               (%current-datachan datachan)
+                (%current-ssh-rcid rcid)
+                (%current-ssh-rws  rws)
+                (%current-ssh-rmps rmax-ps)
+                (%current-ssh-lcid lcid)
+                (%current-ssh-state state) ;; read-only from this thread
+                (%current-datachan datachan)
 
-               (current-input-port (gochan->input-port (%current-datachan)))
+                ;; TODO: make this robust somehow.
+                ;; (current-error-port
+                ;;  (make-output-port
+                ;;   (lambda (str) (gochan-send chan-output `(data ,(%current-ssh-rcid) ,str 1)))
+                ;;   (lambda ()    (gochan-send chan-output `(close ,(%current-ssh-rcid))))))
 
-               ;; TODO: make this robust somehow.
-               ;; (current-error-port
-               ;;  (make-output-port
-               ;;   (lambda (str) (gochan-send chan-output `(data ,(%current-ssh-rcid) ,str 1)))
-               ;;   (lambda ()    (gochan-send chan-output `(close ,(%current-ssh-rcid))))))
+                (let ((cop
+                       (make-output-port
+                        (lambda (str)
+                          (let loop ((str str))
+                            (define (send! str)
+                              (%current-ssh-rws (- (%current-ssh-rws) (string-length str)))
+                              (gochan-send chan-output `(data ,(%current-ssh-rcid) ,str)))
+                            ;;       ,-- number of bytes we can send
+                            (let ((limit (min (%current-ssh-rws) (%current-ssh-rmps))))
+                              (if (<= (string-length str) limit) ;; room for all
+                                  (unless (equal? "" str)
+                                    (send! str))
+                                  (if (> limit 0) ;; room for more
+                                      (begin (send! (substring str 0 limit))
+                                             (loop  (substring str limit)))
+                                      ;; room for no more, wait for window-adjust
+                                      ;; TODO: handle closed lwschan
+                                      (begin (%current-ssh-rws (+ (%current-ssh-rws) (gochan-recv lwschan)))
+                                             (loop str)))))))
+                        (lambda ()    (gochan-send chan-output `(close ,(%current-ssh-rcid))))))
 
-               (let ((cop
-                      (make-output-port
-                       (lambda (str)
-                         (let loop ((str str))
-                           (define (send! str)
-                             (%current-ssh-rws (- (%current-ssh-rws) (string-length str)))
-                             (gochan-send chan-output `(data ,(%current-ssh-rcid) ,str)))
-                           ;;       ,-- number of bytes we can send
-                           (let ((limit (min (%current-ssh-rws) (%current-ssh-rmps))))
-                             (if (<= (string-length str) limit) ;; room for all
-                                 (unless (equal? "" str)
-                                   (send! str))
-                                 (if (> limit 0) ;; room for more
-                                     (begin (send! (substring str 0 limit))
-                                            (loop  (substring str limit)))
-                                     ;; room for no more, wait for window-adjust
-                                     ;; TODO: handle closed lwschan
-                                     (begin (%current-ssh-rws (+ (%current-ssh-rws) (gochan-recv lwschan)))
-                                            (loop str)))))))
-                       (lambda ()    (gochan-send chan-output `(close ,(%current-ssh-rcid)))))))
-                 (current-output-port cop)
-                 (dynamic-wind
-                     (lambda () #f)
-                     (lambda ()
-                       (let ((result (proc)))
-                         (gochan-send chan-output `(exit-status ,(%current-ssh-rcid)
-                                                                ,(if (number? result) result 0)))))
-                     (lambda () (close-output-port cop)))))))
+                      (cip (gochan->input-port (%current-datachan))))
+
+                  ;; close ssh channel in case of errors in (proc)
+                  (let ((ceh (current-exception-handler)))
+                    (current-exception-handler (lambda (e)
+                                                 (close-input-port cip)
+                                                 (close-output-port cop)
+                                                 (ceh e))))
+                  (let ((result (parameterize ((current-output-port cop)
+                                               (current-input-port cip))
+                                  (proc))))
+                    (gochan-send chan-output `(exit-status ,(%current-ssh-rcid)
+                                                           ,(if (number? result) result 0)))
+                    (close-output-port cop))))
+              ;; thread-name:
+              (conc "minissh:" (cadr (receive (tcp-port-numbers (ssh-ip ssh)))) "@" lcid))))
            (unparse-channel-open-confirmation ssh rcid lcid (%current-ssh-lws) (%current-ssh-lmps))))
 
         (('channel-request lcid 'pty-req want-reply? term
