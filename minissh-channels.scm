@@ -57,12 +57,15 @@
 
   (tcp-read-timeout #f)
   (thread-start!
-   (lambda ()
-     (let loop ()
-       (let ((msg (next-payload ssh)))
-         (unless (eof-object? msg) ;; currently unimplemented, getting errors instead
-           (gochan-send chan-network-read msg)
-           (loop))))))
+   (make-thread
+    (lambda ()
+      (let loop ()
+        (let ((msg (next-payload ssh)))
+          (unless (eof-object? msg) ;; currently unimplemented, getting errors instead
+            (gochan-send chan-network-read msg)
+            (loop)))))
+    ;;                  ,-- remote port number
+    (conc "minissh@" (cadr (receive (tcp-port-numbers (ssh-ip ssh)))))))
 
   (let loop ()
     (gochan-select
