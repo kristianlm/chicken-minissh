@@ -1,14 +1,15 @@
 (import gochan matchable
         srfi-69 srfi-18
         (only (chicken tcp) tcp-read-timeout)
+        (only (chicken memory) move-memory!)
         (chicken port)
         (chicken string)
         (chicken io)
         (chicken condition))
 
 (define %current-ssh-rcid   (make-parameter #f)) (define %current-ssh-lcid   (make-parameter #f))
-(define %current-ssh-rws    (make-parameter #f)) (define %current-ssh-lws    (make-parameter #f))
-(define %current-ssh-rmps   (make-parameter #f)) (define %current-ssh-lmps   (make-parameter #f))
+(define %current-ssh-rws    (make-parameter #f)) (define %current-ssh-lws    (make-parameter (* 1 1024)))
+(define %current-ssh-rmps   (make-parameter #f)) (define %current-ssh-lmps   (make-parameter 32767))
 (define %current-ssh-chan  (make-parameter #f))
 (define current-ssh-user   (make-parameter #f))
 (define current-ssh-userpk (make-parameter #f))
@@ -20,29 +21,11 @@
 (define (current-terminal-height) (vector-ref (%current-ssh-state) 2))
 (define (current-terminal-modes)  (vector-ref (%current-ssh-state) 3))
 
-(define (gochan->input-port gochan)
-  (let ((buffer "") (pos 0)) ;; buffer is #f for #!eof
-    (make-input-port
-     (lambda () ;; read
-       (let loop ()
-         (if (>= pos (string-length buffer))
-             (gochan-select
-              ((gochan -> msg closed?)
-               (if closed?
-                   #!eof
-                   (begin
-                     (set! buffer msg)
-                     (set! pos 0)
-                     (loop)))))
-             (let ((c (string-ref buffer pos)))
-               (set! pos (+ 1 pos))
-               c))))
-     (lambda () ;; ready?
-       (let loop ()
-         (if (>= pos (string-length buffer))
-             #t
-             #f))) ;;; <-- TODO: gochan-select with 0 timeout
-     (lambda () (gochan-close gochan)))))
+;; lowest remote window size
+(define current-ssh-watermark/minimum   (make-parameter (* 1024 1024)))
+;; remote window size increment once below current-ssh-watermark/minimum
+(define current-ssh-watermark/increment (make-parameter (* 1024 1024)))
+;; remote window size will always be between these two values
 
 (define (channels-accept ssh proc #!key (tcp-read-timeout tcp-read-timeout))
   (define chan-network-read  (gochan 0)) ;; from separate reader thread to main loop
@@ -67,6 +50,75 @@
     ;;                  ,-- remote port number
     (conc "minissh@" (cadr (receive (tcp-port-numbers (ssh-ip ssh)))))))
 
+  ;; we need chan-output when we must notify of bigger window size.
+  (define (gochan->input-port gochan)
+
+    (let ((buffer "") (pos 0)) ;; buffer is #f for #!eof
+
+      (define (fill!)
+        (let loop ()
+          (when (and buffer (>= pos (string-length buffer)))
+            (gochan-select
+             ((gochan -> msg closed?)
+              (if closed?
+                  (set! buffer #f)
+                  (begin
+                    (%current-ssh-lws (- (%current-ssh-lws) (string-length msg)))
+                    (when (<= (%current-ssh-lws) (current-ssh-watermark/minimum))
+                      (%current-ssh-lws (+ (%current-ssh-lws) (current-ssh-watermark/increment)))
+                      (gochan-send chan-output `(lws ,(%current-ssh-rcid) ,(current-ssh-watermark/increment))))
+                    (set! buffer msg)
+                    (set! pos 0)
+                    (loop))))))))
+
+      (make-input-port
+       (lambda () ;; read
+         (fill!)
+         (if buffer
+             (let ((c (string-ref buffer pos)))
+               (set! pos (+ 1 pos))
+               c)
+             #!eof))
+       (lambda () ;; ready?
+         (fill!)
+         (if buffer
+             (if (>= pos (string-length buffer))
+                 #t
+                 #f) ;;; <-- TODO: gochan-select with 0 timeout
+             #t)) ;; <-- eof is always ready
+       (lambda () ;; close
+         (gochan-close gochan))
+       (lambda () ;; peek
+         (fill!)
+         (if buffer
+             (string-ref buffer pos)
+             #!eof))
+       (lambda (port len dest offset) ;; read-string!
+         (let loop ((want len)
+                    (offset offset)
+                    (filled 0))
+
+           (if buffer
+               ;;      ,-- number of bytes left in buffer
+               (let ((got (- (string-length buffer) pos)))
+                 (if (>= got want) ;; we have enough to fill dest
+                     (begin
+                       ;;            from   to   bytes from-offset to-offset
+                       (move-memory! buffer dest want  pos         offset)
+                       (set! pos (+ pos want))
+                       (+ filled want))
+                     (begin ;; we don't have enough, but fill in what we have and retry
+                       (move-memory! buffer dest got   pos         offset)
+                       (set! pos (+ pos got))
+                       (fill!) ;; obs: this _must_ replace our buffer now
+                       (loop (- want got)
+                             (+ offset got)
+                             (+ filled got)))))
+               ;; eof:
+               filled))))))
+
+
+
   (let loop ()
     (gochan-select
      ((chan-network-read -> msg closed?)
@@ -74,10 +126,9 @@
 
         (('channel-open type rcid rws rmax-ps)
          (let ((state (vector #f #f #f #f))
-               (datachan (gochan 1024)) ;; incoming channel-data
-               (lwschan  (gochan 1024)) ;; incoming window-adjust
-               (lws     128)
-               (lmps    128))
+               (datachan (gochan 1024))  ;; incoming channel-data
+               (lwschan  (gochan 1024))) ;; incoming window-adjust
+
            (set! lcid (+ lcid 1)) ;; TODO: do something better here?
            (hash-table-set! lcid->rcid      lcid rcid)
            (hash-table-set! lcid->state     lcid state)
@@ -93,8 +144,6 @@
                (%current-ssh-rws  rws)
                (%current-ssh-rmps rmax-ps)
                (%current-ssh-lcid lcid)
-               (%current-ssh-lws  lws)
-               (%current-ssh-lmps lmps)
                (%current-ssh-state state) ;; read-only from this thread
                (current-datachan datachan)
 
@@ -134,7 +183,7 @@
                          (gochan-send chan-output `(exit-status ,(%current-ssh-rcid)
                                                                 ,(if (number? result) result 0)))))
                      (lambda () (close-output-port cop)))))))
-           (unparse-channel-open-confirmation ssh rcid lcid lws lmps)))
+           (unparse-channel-open-confirmation ssh rcid lcid (%current-ssh-lws) (%current-ssh-lmps))))
 
         (('channel-request lcid 'pty-req want-reply? term
                            width/characters height/rows ;; numbers
@@ -199,6 +248,8 @@
          (print "CLOSING CLOSING " rcid)
          (unparse-channel-eof ssh rcid)
          (unparse-channel-close ssh rcid))
+        (('lws rcid increment)
+         (unparse-channel-window-adjust ssh rcid increment))
         (('exit-status rcid exit-status)
          (unparse-channel-request ssh rcid 'exit-status #f exit-status))
         (else (error "unknown packet from thread" msg)))))
