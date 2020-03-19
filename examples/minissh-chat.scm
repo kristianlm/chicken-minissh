@@ -335,8 +335,7 @@
                        ((equal? body "/users")
                         (display "\r\x1b[K")
                         (print-users))
-                       ((equal? body "/exit") ;; TODO
-                        (gochan-close alive)
+                       ((equal? body "/exit")
                         (quit #f))
                        (else
                         (broadcast! (list user body))))
@@ -348,9 +347,7 @@
                 (else (edit-input! e cmd))))
             (gochan-send alive #f) ;; <-- refresh, but avoid likely print race-conditions
             (loop)))))
-     ;; TODO: enable graceful exit
-     ;; (gochan-close alive)
-     ))
+     (gochan-close alive)))
 
   (refresh e user)
   (let loop ((bc bc))
