@@ -304,7 +304,9 @@
   (let ((color (if self? 33 34)))
     (display (conc "\r\x1b[K\x1b[32m" (time->string (seconds->local-time) "%H:%M")
                    " \x1b[" color "m" user "\x1b[0m")))
-  (print " " msg))
+  (if (string? msg)
+      (print " " msg) ;;  ,-- eg 'joined or 'eof
+      (print " \x1b[31m" msg "\x1b[0m")))
 
 ;; keep last line (editing) nice and tidy
 (define (refresh e user)
@@ -350,22 +352,25 @@
      (gochan-close alive)))
 
   (refresh e user)
-  (let loop ((bc bc))
-    (gochan-select
-     ((bc -> _ msg)
-      (match msg
-        ((bc (from msg))
-         (print-msg from msg (equal? user from))
-         (refresh e user)
-         (loop bc))))
-     ((alive -> request closed?)
-      ;;(if request (display))
-      (refresh e user)
-      (if closed?
-          (broadcast! (list user 'eof))
-          (loop bc))))))
 
-(import srfi-18) (thread-start! (lambda () (import nrepl) (nrepl 1234)))
+  (let ((bc bc)) ;; grab bc now so we're sure we get our own broadcast
+    (broadcast! (list user 'joined))
+    (let loop ((bc bc))
+      (gochan-select
+       ((bc -> _ msg)
+        (match msg
+          ((bc (from msg))
+           (print-msg from msg (equal? user from))
+           (refresh e user)
+           (loop bc))))
+       ((alive -> request closed?)
+        ;;(if request (display))
+        (refresh e user)
+        (if closed?
+            (broadcast! (list user 'left))
+            (loop bc)))))))
+
+(thread-start! (lambda () (import nrepl) (nrepl 1234 host: "127.0.0.1")))
 (ssh-server-start
  host-pk host-sk
  (lambda (ssh)
