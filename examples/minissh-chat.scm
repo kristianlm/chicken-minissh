@@ -33,10 +33,11 @@
   #${ba72291c15494ee02003b3c0bb0f8507a6a803850aa811d015b141a193e2447d
      87ddfab6ed4c5da12496e79db431b69d9456b516910b67b13f022fd88ba59059})
 
-(define (C-c)
+(define (print-help)
   (print "commands:\r
+ /help\r
  /exit\r
- /users"))
+ /users\r"))
 
 (define (greeting)
   (print ";; Welcome to secure CHICKEN chat\r
@@ -281,6 +282,7 @@
 (define (userpks) (hash-table-keys _userpks))
 
 (define (print-users)
+  (print "/users " (hash-table-size _userpks) ":\r")
   (hash-table-for-each
    _userpks
    (lambda (user pk) (print pk " " user "\r"))))
@@ -334,6 +336,9 @@
               (case cmd
                 ((enter)
                  (cond ((equal? body ""))
+                       ((equal? body "/help")
+                        (display "\r\x1b[K")
+                        (print-help))
                        ((equal? body "/users")
                         (display "\r\x1b[K")
                         (print-users))
@@ -345,7 +350,7 @@
                  (set! (edit-pos e) 0))
                 ((C-c)
                  (print "\r\x1b[K")
-                 (C-c))
+                 (print-help))
                 (else (edit-input! e cmd))))
             (gochan-send alive #f) ;; <-- refresh, but avoid likely print race-conditions
             (loop)))))
@@ -383,6 +388,4 @@
                                          (set! (userpk user) pk)))
                           #t)))
    (channels-accept
-    ssh (lambda ()
-          ;;(error "TESTING TESTING")
-          (handle-chat (ssh-user ssh) (ssh-user-pk ssh))))))
+    ssh (lambda () (handle-chat (ssh-user ssh) (ssh-user-pk ssh))))))
