@@ -253,7 +253,7 @@
          ;; OpenSSH is "disconnected by user" on C-d.
          #f)
 
-        (else (error "unknown packet" msg))))
+        (else (warning "unknown packet" msg))))
 
      ((chan-output -> msg closed?)
       (match msg
