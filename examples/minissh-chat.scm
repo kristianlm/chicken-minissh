@@ -314,7 +314,6 @@
     (edit-render e (max 0 (- (width) (utf8.string-length prefix) -9)))))
 
 (define (handle-chat user pk)
-  (set! (userpk user) pk)
   (greeting)
 
   (define alive (gochan 0))
@@ -376,7 +375,11 @@
    (set! _ssh ssh)
    (userauth-accept ssh
                     publickey:
-                    (lambda (user type pk signed?) #t))
+                    (lambda (user type pk signed?)
+                      (if signed?
+                          (equal? pk (or (userpk user)
+                                         (set! (userpk user) pk)))
+                          #t)))
    (channels-accept
     ssh (lambda ()
           ;;(error "TESTING TESTING")
