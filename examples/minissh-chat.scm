@@ -14,10 +14,16 @@
 ;;; to do their work. we just want bytes to and from our ssh client
 ;;; (which does the pseudo-terminal part ... I think). anyway, it
 ;;; works for demonstration purposes it seems.
+;;;
+;;; oh, and it isn't really a readline implementation: I cheated and
+;;; made support for editing one-liners.
 (import minissh (chicken io) gochan chicken.string srfi-18 (chicken time posix)
-        chicken.irregex
+        chicken.file
         minissh.core chicken.condition
-        (prefix utf8 utf8.))
+        matchable
+        srfi-69 ;; hash-tables
+        (prefix utf8 utf8.)
+        )
 
 (ssh-log-payload? #t)
 
@@ -27,43 +33,38 @@
   #${ba72291c15494ee02003b3c0bb0f8507a6a803850aa811d015b141a193e2447d
      87ddfab6ed4c5da12496e79db431b69d9456b516910b67b13f022fd88ba59059})
 
+(define (C-c)
+  (print "commands:\r
+ /exit\r
+ /users"))
+
+(define (greeting)
+  (print ";; Welcome to secure CHICKEN chat\r
+;; Or, it might have been secure if the secret key\r
+;; wasn't committed in the official repo. Everything\r
+;; you send is broadcast to everyone.\r
+;; Problems? <enter>`.<enter> forces ssh disconnect\r"))
+
+(if (file-exists? ".minissh-chat.scm")
+    (load         ".minissh-chat.scm"))
+
 (print "test with: ssh localhost -p 22022 chat")
 
 (define chan #f)
 (define (width) (or (current-terminal-width) 80))
 
-(begin
-  (define e (make-edit))
-  (edit-input! e "1111111111 2222222222 3333333333 4444444444 5555555555 6666666666 7777777777 8888888888")
-  (edit-input! e 'left 'left 'left 'left 'left 'left 'left 'left 'left)
-  (edit-print e)
-
-  (define (edit-render e width)
-    (let* ((pos (edit-pos e))
-           (buf (edit-buf e))
-           (len (edit-len e))
-           (w (- width 1))
-           (trimlen (min w len))
-           (start (max 0 (min (- pos (quotient w 2))
-                              (- len w))))
-           (end (+ start trimlen)))
-      (display (utf8.substring buf start end))
-      (unless (eq? pos len) ;; move cursor back into position
-        (display (utf8.conc "\x1b[" (- end (edit-pos e)) "D")))))
-
-  (edit-render e 40)
-
-  (define (refresh)
-    (display "\r\x1b[K") ;; goto column 0 and erase line
-    (let ((prefix "[\x1b[32mklm\x1b[0m] "))
-      (display prefix)
-      (edit-render e (max 0 (- (width) (utf8.string-length prefix))))))
-
-  (send refresh)
-  (void))
-
-(define (send x)
-  (and chan (gochan-send chan x)))
+(define (edit-render e width)
+  (let* ((pos (edit-pos e))
+         (buf (edit-buf e))
+         (len (edit-len e))
+         (w (- width 1))
+         (trimlen (min w len))
+         (start (max 0 (min (- pos (quotient w 2))
+                            (- len w))))
+         (end (+ start trimlen)))
+    (display (utf8.substring buf start end))
+    (unless (eq? pos len) ;; move cursor back into position
+      (display (utf8.conc "\x1b[" (- end (edit-pos e)) "D")))))
 
 (define (read-cmd)
 
@@ -82,7 +83,7 @@
           ((is? #\x0a) 'newline)     ;;  ^H
           ((is? #\x0b) 'deleteline)  ;;  ^K
           ((is? #\x0c) 'clearscreen) ;;  ^L
-          ((is? #\x0d) 'C-m)
+          ((is? #\x0d) 'enter) ;; aka C-m
           ((is? #\x0e) 'down) ;; C-n ^N
           ((is? #\x0f) 'C-o)
           ((is? #\x10) 'C-p)        ;; ?
@@ -270,28 +271,103 @@
                               termination)))
         (traverse start (lambda (buf pos) (pred buf pos (utf8.string-ref buf pos))) termination))))
 
-  (send refresh)
   (edit-find e (lambda (b p c) (eq? c #\space)) #f))
 
-(define (handle-chat user pk)
-  (set! e (make-edit))
+(define _userpks (make-hash-table))
+(define userpk
+  (getter-with-setter
+   (lambda (user) (hash-table-ref _userpks user (lambda () #f)))
+   (lambda (user pk) (hash-table-set! _userpks user pk) (userpk user))))
+(define (userpks) (hash-table-keys _userpks))
 
-  (set! chan (gochan 0))
-  (thread-start! (lambda ()
-                   (let ((ceh (current-exception-handler)))
-                     (current-exception-handler (lambda (e) (gochan-close chan) (ceh e))))
-                   (let loop ()
-                     (let ((cmd (read-cmd)))
-                       (edit-input! e cmd)
-                       (refresh))
-                     (loop))))
-  (let loop ()
+(define (print-users)
+  (hash-table-for-each
+   _userpks
+   (lambda (user pk) (print pk " " user "\r"))))
+
+(define bc (gochan 0))
+(define msgs (gochan 0))
+
+;; this is a publish-subscribe pattern of some sort. we chain the
+;; gocha's together, starting with the top-level bc (later
+;; replaced). when the gochan is closed, it points to the gochan that
+;; will get the next message (in the close flag). this ensures that no
+;; messages get lost, and nobody misses a gochan instance in the
+;; middle of the chain. GC should pick up unreferenced gochan's
+;; backwards in the chain.
+(define (broadcast! msg)
+  (let ((chan-next (gochan 0)))
+    (gochan-close bc (list chan-next msg))
+    (set! bc chan-next)))
+
+(define (print-msg user msg self?)
+  (let ((color (if self? 33 34)))
+    (display (conc "\r\x1b[K\x1b[32m" (time->string (seconds->local-time) "%H:%M")
+                   " \x1b[" color "m" user "\x1b[0m")))
+  (print " " msg))
+
+;; keep last line (editing) nice and tidy
+(define (refresh e user)
+  (display "\r\x1b[K") ;; goto column 0 and clear line
+  (let ((prefix (conc "[\x1b[33m" user "\x1b[0m] ")))
+    (display prefix)
+    (edit-render e (max 0 (- (width) (utf8.string-length prefix) -9)))))
+
+(define (handle-chat user pk)
+  (set! (userpk user) pk)
+  (greeting)
+
+  (define alive (gochan 0))
+  (define e (make-edit))
+  (define (prompt) (conc "[" user "]"))
+
+  (thread-start!
+   (lambda ()
+     (let ((ceh (current-exception-handler)))
+       (current-exception-handler (lambda (e) (gochan-close alive) (ceh e))))
+     (call/cc
+      (lambda (quit)
+        (let loop ()
+          (let ((cmd (read-cmd)))
+            (let ((body (edit-buf e)))
+              (case cmd
+                ((enter)
+                 (cond ((equal? body ""))
+                       ((equal? body "/users")
+                        (display "\r\x1b[K")
+                        (print-users))
+                       ((equal? body "/exit") ;; TODO
+                        (gochan-close alive)
+                        (quit #f))
+                       (else
+                        (broadcast! (list user body))))
+                 (set! (edit-buf e) "")
+                 (set! (edit-pos e) 0))
+                ((C-c)
+                 (print "\r\x1b[K")
+                 (C-c))
+                (else (edit-input! e cmd))))
+            (gochan-send alive #f) ;; <-- refresh, but avoid likely print race-conditions
+            (loop)))))
+     ;; TODO: enable graceful exit
+     ;; (gochan-close alive)
+     ))
+
+  (refresh e user)
+  (let loop ((bc bc))
     (gochan-select
-     ((chan -> msg)
-      (if (procedure? msg)
-          (msg)
-          (display msg))
-      (loop)))))
+     ((bc -> _ msg)
+      (match msg
+        ((bc (from msg))
+         (print-msg from msg (equal? user from))
+         (refresh e user)
+         (loop bc))))
+     ((alive -> request closed?)
+      ;;(if request (display))
+      (refresh e user)
+      (if closed?
+          (broadcast! (list user 'eof))
+          (loop bc))))))
 
 (import srfi-18) (thread-start! (lambda () (import nrepl) (nrepl 1234)))
 (ssh-server-start
