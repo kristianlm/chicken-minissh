@@ -7,7 +7,7 @@
                       userauth-publickey userauth-password
                       userauth-accept
                       kexinit-start
-                      ssh-log ssh-log? ssh-log-payload?
+                      ssh-log* ssh-log ssh-log? ssh-log-payload?
 
 
                       unparse-channel-failure
@@ -34,7 +34,9 @@
                       unparse-service-accept
                       unparse-service-request
                       unparse-unimplemented
-                      unparse-disconnect )
+                      unparse-disconnect
+
+                      payload-parse payload-type)
 (import scheme
         (chicken base)
         (chicken foreign))

@@ -9,6 +9,7 @@
         (only (chicken io) read-line write-byte read-byte read-string)
         (only (chicken bitwise) arithmetic-shift)
         (only (chicken condition) handle-exceptions current-exception-handler)
+        (only (chicken time posix) seconds->local-time time->string)
         (only tweetnacl asymmetric-box-secretkeybytes current-entropy-port
               asymmetric-sign asymmetric-verify
               symmetric-verify symmetric-sign scalarmult*
@@ -35,7 +36,7 @@
 
 ;; grab hold of current-error-port now so we don't log into channels
 ;; (and send it across the ssh session).
-(define ssh-log
+(define ssh-log*
   (let ((cep (current-error-port)))
     (lambda args
       (when (ssh-log?)
@@ -46,25 +47,17 @@
              (windows (flush-output))
              (else))))))))
 
-(define (ssh-log-recv ssh payload)
+(define (now) (conc "\x1b[33m" (time->string (seconds->local-time) "%H:%M") "\x1b[0m "))
+(define (ssh-log ssh payload prefix)
   (if (ssh-log-payload?)
-      (ssh-log "ssh recv #" (ssh-seqnum/read ssh) ": " (payload-type payload)
-               " (" (string-length payload) " bytes)"
-               " " (wots (write (payload-parse payload))))
-      (ssh-log "ssh recv #" (ssh-seqnum/read ssh) ": " (payload-type payload)
-               " (" (string-length payload) " bytes)")))
+      (ssh-log* (now) prefix "\x1b[34m" (payload-type payload) "\x1b[0m " (wots (write (payload-parse payload))))
+      (ssh-log* (now) prefix "\x1b[34m" (payload-type payload) "\x1b[0m (" (string-length payload) " bytes)")))
 
-(define (ssh-log-send ssh payload)
-  (if (ssh-log-payload?)
-      (ssh-log "ssh send #" (ssh-seqnum/write ssh) ": " (payload-type payload)
-               " (" (string-length payload) " bytes)"
-               " " (wots (write (payload-parse payload))))
-      (ssh-log "ssh send #" (ssh-seqnum/write ssh) ": " (payload-type payload)
-               " (" (string-length payload) " bytes)")))
+(define (ssh-log-recv ssh payload) (ssh-log ssh payload (conc "ssh recv #" (ssh-seqnum/read  ssh) ": ")))
+(define (ssh-log-send ssh payload) (ssh-log ssh payload (conc "ssh send #" (ssh-seqnum/write ssh) ": ")))
 
 (define (ssh-log-ignore/parsed ssh parsed)
-  (ssh-log "ssh ignr #" (ssh-seqnum/write ssh) ": " (car parsed)
-           " " (wots (write parsed))))
+  (ssh-log* "ssh ignr #" (ssh-seqnum/write ssh) ": " (car parsed) " " (wots (write parsed))))
 
 (define-record-type <ssh>
   (%make-ssh server?
