@@ -1,14 +1,9 @@
-(cond-expand
- (chicken-5 (import minissh tweetnacl
-                    (chicken port)
-                    (chicken io)
-                    (chicken process) (chicken process-context)))
- (else (use minissh tweetnacl)))
+(import minissh
+        (chicken port)
+        (chicken io)
+        (chicken process) (chicken process-context))
 
 (ssh-log? #f)
-
-;; the default /dev/random causes hangs
-(current-entropy-port (open-input-file "/dev/urandom"))
 
 (define user (get-environment-variable "USER"))
 (define cmd  "date")

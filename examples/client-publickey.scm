@@ -1,12 +1,7 @@
-(cond-expand
- (chicken-5 (import minissh tweetnacl (chicken port)
-                    (chicken process-context)))
- (else (use minissh tweetnacl)))
+(import minissh (chicken port)
+        (chicken process-context))
 
 (ssh-log? #f)
-
-;; the default /dev/random causes hangs
-(current-entropy-port (open-input-file "/dev/urandom"))
 
 ;; generated with (ssh-keygen 'ed25519)
 (define pk "AAAAC3NzaC1lZDI1NTE5AAAAIHqxQfb1habVfT2eC9LfKyXq84k1aU+ylV8qwVPeeyxv")

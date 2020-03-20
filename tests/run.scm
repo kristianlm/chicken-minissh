@@ -1,10 +1,8 @@
-(cond-expand
- (chicken-5 (import test minissh tweetnacl
-                    base64 matchable queues srfi-18 srfi-69
-                    (only (chicken blob) blob->string)
-                    (only (chicken port) port-for-each)
-                    (only (chicken tcp) tcp-read-timeout)))
- (else (use test minissh base64 matchable tweetnacl)))
+(import test minissh tweetnacl
+        base64 matchable queues srfi-18 srfi-69
+        (only (chicken blob) blob->string)
+        (only (chicken port) port-for-each)
+        (only (chicken tcp) tcp-read-timeout))
 
 (ssh-log? #f)
 

@@ -1,9 +1,4 @@
-(cond-expand
- (chicken-5 (import minissh tweetnacl srfi-18 (chicken tcp) (chicken port)))
- (else (use minissh tweetnacl)))
-
-;; the default /dev/random causes hangs
-(current-entropy-port (open-input-file "/dev/urandom"))
+(import minissh tweetnacl srfi-18 (chicken tcp) (chicken port))
 
 ;; the secret key would normally be kept safe
 (define host-pk

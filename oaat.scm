@@ -1,10 +1,5 @@
-(cond-expand
- (chicken-5
-  (import (only srfi-18 make-condition-variable condition-variable-broadcast!
-                mutex-unlock! mutex-lock!)))
- (else
-  (use (only srfi-18 make-condition-variable condition-variable-broadcast!
-             mutex-unlock! mutex-lock!))))
+(import (only srfi-18 make-condition-variable condition-variable-broadcast!
+              mutex-unlock! mutex-lock!))
 ;;; one at a time
 ;;; included by channels-gochan.scm
 ;;;
