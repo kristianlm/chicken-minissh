@@ -247,6 +247,42 @@ new channels. However,
 `minissh` supports client that call `channel-accept` and servers that
 call `channel-exec`, though this is unconventional.
 
+## A word on complexity
+
+I keep coming back to this codebase and find it incredibly complex. I
+always find myself wanting to fix it up. The concurrency aspect is
+really what's making it complex. If we didn't need multiple threads, I
+feel the code could be dropped to something like a fifth. But here's
+the deal-breaker: if we can use only one thread, we can't have our SSH
+sessions respond to external events, since the session thread might be
+blocked by a read. The only way to solve that, as far as I know, is to
+read from a separate thread. And that's when the party is getting
+started.
+
+The most useful API for the SSH channels is to have one srfi-18 thread
+per channel, with its input and output ports bound
+correspondingly. This makes application-writing nice and easy. But
+this is complicated to implement. For example, any channel read might
+have to send a window-adjust (to unblock remote end when its window
+size is 0). And any channel write potentially needs to block on
+window-adjust.
+
+I have tried to find a simple callback-based API that I could use to
+build the concurrency aspects on top of - several times. I really want
+to keep all concurrency aspects (`mutex-lock!` and friends) separate,
+but I'm not seeing how that could be done without restricting
+ourselves to a SSH server that can only respond to it's own network
+traffic.
+
+And finally, if you're thinking that this could be solved by having a
+single reader thread and a single writer thread, I salute you. I might
+have had that thought 300 times. But it turns out, that too is harder
+than it seems: if you're a writer-only-thread, you may want to send a
+KEXINIT message, to initialize a key re-exchange. That is wonderful,
+but now you need to coordinate with the reader-thread because you
+cannot really perform the key re-exchange without coordinating with
+the reader-thread somehow. So we're back to square one, no?
+
 # TODO
 
 ## fix known bug: will never initiate key negitiation
