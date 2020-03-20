@@ -21,6 +21,7 @@
                      gochan-data
                      gochan-close
                      gochan-window-adjust
+                     pty
                      max-ps
                      ws/read ws/write) ;; window sizes
   ;; TODO: field for max packet size
@@ -36,6 +37,7 @@
   (gochan-data             %channel-gochan-data)
   (gochan-close            %channel-gochan-close)
   (gochan-window-adjust    %channel-gochan-window-adjust)
+  (pty                     %channel-pty)
   (max-ps      ssh-channel-max-ps)
   (ws/read  ssh-channel-ws/read  %ssh-channel-ws/read-set!)
   (ws/write ssh-channel-ws/write %ssh-channel-ws/write-set!))
@@ -73,10 +75,21 @@
                                 (gochan 1024) ;; gochan-data
                                 (gochan 1024) ;; gochan-close
                                 (gochan 1024) ;; gochan-window-adjust
+                                (vector #f #f #f #f #f) ;; pty
                                 rmax-ps lws rws)))
     (set! (ssh-channel ssh lcid) ch)
     (mutex-unlock! (ssh-channels-mutex ssh))
     ch))
+
+(define (channel-pty-property idx)
+  (getter-with-setter (lambda (ch)   (vector-ref  (%channel-pty ch) idx))
+                      (lambda (ch v) (vector-set! (%channel-pty ch) idx v))))
+
+(define channel-allow-pty?      (channel-pty-property 0))
+(define channel-terminal        (channel-pty-property 1))
+(define channel-terminal-width  (channel-pty-property 2))
+(define channel-terminal-height (channel-pty-property 3))
+(define channel-terminal-modes  (channel-pty-property 4))
 
 (define (channel-close-all-gochans ch p)
   (gochan-close (%channel-gochan-open-response ch) p)
@@ -215,6 +228,33 @@
                     ;; hack of the month! pretend #f is #t since "close flag" can't be #f
                     (gochan-close (%channel-gochan-cmd (ssh-channel ssh cid)) #t))
 
+                   (('channel-request cid 'pty-req want-reply? term
+                                      width/characters height/rows ;; numbers
+                                      width/pixels height/pixels ;; numbers, usuall 0
+                                      modes) ;; blob
+                    (let ((ch (ssh-channel ssh cid)))
+                      (if (channel-allow-pty? ch)
+                          (begin
+                            (when want-reply? (unparse-channel-success ssh (channel-rcid ch)))
+                            (set! (channel-terminal ch) term)
+                            (set! (channel-terminal-width ch) width/characters)
+                            (set! (channel-terminal-height ch) height/rows)
+                            (set! (channel-terminal-modes ch) modes))
+                          (begin
+                            (when want-reply? (unparse-channel-failure ssh (channel-rcid ch)))))))
+
+                   (('channel-request cid 'window-change want-reply?
+                                      width/characters height/rows ;; numbers
+                                      width/pixels     height/pixels) ;; numbers, usually 0
+                    (let ((ch (ssh-channel ssh cid)))
+                      (if (channel-allow-pty? ch)
+                          (begin
+                            (when want-reply? (unparse-channel-success ssh (channel-rcid ch)))
+                            (set! (channel-terminal-width ch) width/characters)
+                            (set! (channel-terminal-height ch) height/rows))
+                          (begin
+                            (when want-reply? (unparse-channel-failure ssh (channel-rcid ch)))))))
+
                    (('channel-request cid _ want-reply? . rest)
                     (when want-reply?
                       (unparse-channel-failure ssh (channel-rcid (ssh-channel ssh cid)))))))))
@@ -265,7 +305,7 @@
            (loop)))))
 
 ;; block and wait for channel-open
-(define (channel-accept ssh)
+(define (channel-accept ssh #!key pty)
   (define chan-open (%ssh-gochan-channel-open ssh))
   (register-server-handlers! ssh)
 
@@ -280,6 +320,7 @@
              (let ((lws (current-window-size))
                    (lmax-ps (current-max-ps)))
                (define ch (make-ssh-channel ssh type rcid lws rws rmax-ps))
+               (set! (channel-allow-pty? ch) pty)
                (unparse-channel-open-confirmation ssh rcid (channel-lcid ch)
                                                   lws lmax-ps)
                 ;; force server to process exec/shell requests

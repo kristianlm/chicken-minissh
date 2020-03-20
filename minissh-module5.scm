@@ -4,7 +4,9 @@
                  ssh-server-start userauth-accept channel-accept
                  ;; client
                  ssh-connect userauth-password userauth-publickey
-                 channel-open channel-exec channel-command
+                 channel-open channel-exec
+                 ;; channel properties
+                 channel-command channel-terminal channel-terminal-width channel-terminal-height
                  ;; channel io
                  channel-read channel-write channel-eof channel-close
                  channel-input-port channel-output-port channel-error-port
