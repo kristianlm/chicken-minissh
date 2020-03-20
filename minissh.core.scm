@@ -755,10 +755,12 @@
                           #!key
                           (port 22022)
                           (listener (tcp-listen port))
+                          (tcp-read-timeout tcp-read-timeout)
                           (accept tcp-accept)
                           (spawn (lambda (thunk) (thread-start! thunk) #t)))
   (assert (string? server-host-key-public64))
   (assert (blob? server-host-key-secret))
+  (tcp-read-timeout #f)
   (let loop ()
     (receive (ip op) (accept listener)
       (when
