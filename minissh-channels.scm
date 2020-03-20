@@ -1,6 +1,6 @@
 (import
  matchable gochan
- (only (chicken port) make-output-port make-input-port)
+ (only (chicken port) make-output-port make-input-port with-output-to-string)
  (only srfi-13 string-null?)
  (only srfi-69 make-hash-table hash-table-ref hash-table-set! hash-table-fold hash-table-for-each)
  (only (chicken condition) handle-exceptions current-exception-handler)
@@ -122,7 +122,7 @@
                  (handler (ssh-handler ssh (car p) (lambda () #f))))
             (if handler
                 (handler ssh p)
-                (ssh-log "ignoring unhandled packet: " (wots (write p))))))))
+                (ssh-log "ignoring unhandled packet: " (with-output-to-string (lambda () (write p)))))))))
 
 (define (register-channel-handlers! ssh)
   (ensure-ssh-specific! ssh)
