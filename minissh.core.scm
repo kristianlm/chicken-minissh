@@ -753,7 +753,7 @@
   (let ((kexinit-packet (unparse-kexinit*)))
     (write-payload ssh kexinit-packet)))
 
-(include "minissh-parsing.scm")
+(include "minissh.core-parsing.scm")
 
 (define (payload-parse payload)
   (cond ((hash-table-ref *payload-parsers* (payload-type payload) (lambda () #f)) =>
@@ -946,5 +946,4 @@
     (values (base64-encode (blob->string (alg-ed25519-add pkb)))
             skb)))
 
-(include "minissh-client.scm")
-(include "minissh-channels.scm")
+(include "minissh.core-client.scm")

@@ -14,12 +14,15 @@
                message-digest-utils
                sha2)
  (category net)
- (components (extension minissh
-                        (source "minissh-module5.scm")
+ (components (extension minissh.core
+                        (source "minissh.core-module5.scm")
                         (source-dependencies
-                         "minissh.scm" "minissh-module5.scm"
-                         "minissh-client.scm"
-                         "minissh-channels.scm"
-                         "minissh-parsing.scm"
+                         "minissh.core.scm" 
+                         "minissh.core-client.scm"
+                         "minissh.core-parsing.scm"
                          "oaat.scm"
-                         "chacha20.scm" "chacha20-impl.c" "chacha20-impl.h"))))
+                         "minissh.core-chacha20.scm" "chacha20-impl.c" "chacha20-impl.h"))
+             (extension minissh
+                        (component-dependencies minissh.core)
+                        (source "minissh-module5.scm")
+                        (source-dependencies "minissh-channels.scm"))))

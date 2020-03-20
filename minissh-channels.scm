@@ -1,20 +1,11 @@
-;; also depends on imports from minissh.scm
-(cond-expand
- (chicken-5
-  (import
-   matchable gochan
-   (only (chicken port) make-output-port make-input-port)
-   (only srfi-13 string-null?)
-   (only srfi-69 make-hash-table hash-table-ref hash-table-set! hash-table-fold)
-   (only (chicken port) make-input-port make-output-port)
-   (only srfi-18 make-mutex)))
- (else
-  (use
-   matchable gochan
-   (only srfi-13 string-null?)
-   (only srfi-69 make-hash-table hash-table-ref hash-table-set! hash-table-fold)
-   (only ports make-input-port make-output-port)
-   (only srfi-18 make-mutex))))
+(import
+ matchable gochan
+ (only (chicken port) make-output-port make-input-port)
+ (only srfi-13 string-null?)
+ (only srfi-69 make-hash-table hash-table-ref hash-table-set! hash-table-fold hash-table-for-each)
+ (only (chicken condition) handle-exceptions current-exception-handler)
+ (only (chicken port) make-input-port make-output-port)
+ (only srfi-18 make-mutex))
 
 (include "oaat.scm")
 
