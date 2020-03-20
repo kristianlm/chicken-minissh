@@ -8,6 +8,7 @@
         (only (chicken blob) blob-size string->blob blob->string blob?)
         (only (chicken io) read-line write-byte read-byte read-string)
         (only (chicken bitwise) arithmetic-shift)
+        (only (chicken time posix) time->string seconds->local-time)
         (only (chicken condition) handle-exceptions current-exception-handler)
         (only tweetnacl asymmetric-box-secretkeybytes current-entropy-port
               asymmetric-sign asymmetric-verify
@@ -28,8 +29,9 @@
     ((_ str body ...)
      (with-input-from-string str (lambda () body ...)))))
 
-(define ssh-log?         (make-parameter #t))
-(define ssh-log-payload? (make-parameter #f))
+(define ssh-log?           (make-parameter #t))
+(define ssh-log-payload?   (make-parameter #f))
+(define ssh-log-data?      (make-parameter #t))
 
 ;; grab hold of current-error-port now so we don't log into channels
 ;; (and send it across the ssh session).
@@ -39,28 +41,25 @@
       (when (ssh-log?)
         (with-output-to-port cep
           (lambda ()
-            (apply print (cons (thread-name (current-thread))
-                               (cons " " args)))
+            (apply print args)
             (cond-expand ;; seems stderr doesn't flush on \n on windows
              (windows (flush-output))
              (else))))))))
 
-;; overrride with shorter version
-(define (ssh-log-recv ssh payload)
-  (if (ssh-log-payload?)
-      (ssh-log "ssh recv #" (ssh-seqnum/read ssh) ": " (payload-type payload)
-               " (" (string-length payload) " bytes)"
-               " " (wots (write (payload-parse payload))))
-      (ssh-log "ssh recv #" (ssh-seqnum/read ssh) ": " (payload-type payload)
-               " (" (string-length payload) " bytes)")))
+(define (now) (conc "\x1b[33m" (time->string (seconds->local-time) "%H:%M") "\x1b[0m "))
+(define (ssh-log* ssh payload #!key (pre "") (post " ") (mid ""))
+  (let* ((type (payload-type payload))
+         (s (conc pre (now)
+                  (thread-name (current-thread)) " "
+                  (ssh-user ssh) "@" (cadr (receive (tcp-port-numbers (ssh-ip ssh))))
+                  mid "\x1b[34m" type "\x1b[0m" post)))
+    (if (or (ssh-log-data?) (not (eq? type 'channel-data)))
+        (if (ssh-log-payload?)
+            (ssh-log s (wots (write (payload-parse payload))))
+            (ssh-log s "(" (string-length payload) " bytes)")))))
 
-(define (ssh-log-send ssh payload)
-  (if (ssh-log-payload?)
-      (ssh-log "ssh send #" (ssh-seqnum/write ssh) ": " (payload-type payload)
-               " (" (string-length payload) " bytes)"
-               " " (wots (write (payload-parse payload))))
-      (ssh-log "ssh send #" (ssh-seqnum/write ssh) ": " (payload-type payload)
-               " (" (string-length payload) " bytes)")))
+(define (ssh-log-recv ssh payload) (ssh-log* ssh payload #:mid " recv "))
+(define (ssh-log-send ssh payload) (ssh-log* ssh payload #:mid " send "))
 
 (define (ssh-log-ignore/parsed ssh parsed)
   (ssh-log "ssh ignr #" (ssh-seqnum/write ssh) ": " (car parsed)

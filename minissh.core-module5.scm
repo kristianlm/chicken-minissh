@@ -8,7 +8,7 @@
                       ssh-keygen
                       userauth-accept
                       kexinit-start
-                      ssh-log ssh-log? ssh-log-payload?
+                      ssh-log ssh-log? ssh-log-payload? ssh-log-data?
 
                       ssh-channels ssh-channels-mutex
                       ssh-channel ssh-specific ssh-specific-set!
