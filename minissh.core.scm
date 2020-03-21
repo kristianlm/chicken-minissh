@@ -750,13 +750,16 @@
                           handler
                           #!key
                           (port 22022)
-                          (listener (tcp-listen port))
+                          (host #f) ;; default is 0.0.0.0
+                          (backlog 100) ;; same as default
+                          (listener (tcp-listen port backlog host))
                           (tcp-read-timeout tcp-read-timeout)
                           (accept tcp-accept)
                           (spawn (lambda (thunk) (thread-start! thunk) #t)))
   (assert (string? server-host-key-public64))
   (assert (blob? server-host-key-secret))
   (tcp-read-timeout #f)
+  (ssh-log "server listening on " (if host host "0.0.0.0") ":" port)
   (let loop ()
     (receive (ip op) (accept listener)
       (when
