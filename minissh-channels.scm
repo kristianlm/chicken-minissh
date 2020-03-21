@@ -455,7 +455,7 @@
 (define (channel-input-port ch)
   (let ((buffer "") (pos 0)) ;; buffer is #f for #!eof
     (make-input-port
-     (lambda ()
+     (lambda () ;; read
        (let loop ()
          (if (>= pos (string-length buffer))
              (receive (data idx) (channel-read ch)
@@ -468,36 +468,26 @@
              (let ((c (string-ref buffer pos)))
                (set! pos (+ 1 pos))
                c))))
-     (lambda () #t)
-     void)))
+     (lambda () #t) ;; ready?
+     void))) ;; close
 
 (define (channel-output-port ch)
   (make-output-port
    (lambda (str)
-     (##sys#with-print-length-limit ;; <-- avoid ##sys#print exits
-      #f (lambda () (channel-write ch str #f))))
+     (channel-write ch str #f))
    (lambda ()
      (channel-eof ch)
      (channel-close ch))))
 
+;; tempted to use this? see examples/server-repl.scm for some tips.
 (define (channel-error-port ch)
   (let ((cep (current-error-port)))
     (make-output-port
      (lambda (str)
-       (handle-exceptions e
-         ;; avoid infinite loop: error while printing an error? that
-         ;; will cause printing to this very same error port!
-         (begin (parameterize ((current-error-port cep))
-                  ((current-exception-handler) e)))
-         (##sys#with-print-length-limit ;; <-- avoid ##sys#print exits
-          #f (lambda () (channel-write ch str 'stderr)))))
+       (channel-write ch str 'stderr))
      (lambda ()
-       (handle-exceptions e
-         ;; again, avoid infinite loops
-         (begin (parameterize ((current-error-port cep))
-                  ((current-exception-handler) e)))
-         (channel-eof ch)
-         (channel-close ch))))))
+       (channel-eof ch)
+       (channel-close ch)))))
 
 (define (with-channel-ports ch thunk)
   (parameterize ((current-output-port (channel-output-port ch))

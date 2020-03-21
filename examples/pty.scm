@@ -286,7 +286,7 @@
 
 (import (only chicken.irregex irregex-replace/all))
 ;;(irregex-replace/all `(: ($ (~ "b")) "b") "ababab abba" "" "B")
-(define (make-pty-output-port #!optional (op (current-output-port)))
+(define (make-pty-output-port #!key (op (current-output-port)))
   (make-output-port
    (lambda (str) ;; display
      (display (irregex-replace/all "\n" str "\r\n") op))
