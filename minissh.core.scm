@@ -40,12 +40,11 @@
 (define ssh-log
   (let ((cep (current-error-port)))
     (lambda args
-      (with-output-to-port cep
-        (lambda ()
-          (apply print (cons (ssh-now->log) args))
-          (cond-expand ;; seems stderr doesn't flush on \n on windows
-           (windows (flush-output))
-           (else)))))))
+      ;; trying to reduce race-conditions by printing in one call
+      (display (apply conc `(,(ssh-now->log) ,@args "\n")) cep)
+      (cond-expand ;; seems stderr doesn't flush on \n on windows
+       (windows (flush-output))
+       (else)))))
 
 (define (ssh-payload->log ssh payload) (wots (write (payload-parse payload))))
 (define (ssh-packet->log ssh payload sent?)
