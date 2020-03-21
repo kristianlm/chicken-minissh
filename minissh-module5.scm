@@ -16,7 +16,7 @@
                  ;; accessors
                  ssh-ip ssh-op ssh-user ssh-user-pk
                  ;; log
-                 ssh-log ssh-log? ssh-log-payload?)
+                 ssh-log ssh-log-packets?)
 (import scheme
         (chicken base)
         (chicken foreign))

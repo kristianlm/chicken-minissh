@@ -29,41 +29,38 @@
     ((_ str body ...)
      (with-input-from-string str (lambda () body ...)))))
 
-(define ssh-log?           (make-parameter #t))
-(define ssh-log-payload?   (make-parameter #f))
-(define ssh-log-data?      (make-parameter #t))
+(define ssh-log-packets? (make-parameter #f))
 
-;; grab hold of current-error-port now so we don't log into channels
-;; (and send it across the ssh session).
+(define (ssh-now->log) (conc "\x1b[33m" (time->string (seconds->local-time) "%F %T") "\x1b[0m "))
+(define (ssh-remote->log ssh) (conc (cadr (receive (tcp-addresses (ssh-ip ssh)))) ":"
+                                    (cadr (receive (tcp-port-numbers (ssh-ip ssh))))))
+
+;; grab hold of current-error-port now so we don't log into channels,
+;; sending our logs across the ssh session.
 (define ssh-log
   (let ((cep (current-error-port)))
     (lambda args
-      (when (ssh-log?)
-        (with-output-to-port cep
-          (lambda ()
-            (apply print args)
-            (cond-expand ;; seems stderr doesn't flush on \n on windows
-             (windows (flush-output))
-             (else))))))))
+      (with-output-to-port cep
+        (lambda ()
+          (apply print (cons (ssh-now->log) args))
+          (cond-expand ;; seems stderr doesn't flush on \n on windows
+           (windows (flush-output))
+           (else)))))))
 
-(define (now) (conc "\x1b[33m" (time->string (seconds->local-time) "%H:%M") "\x1b[0m "))
-(define (ssh-log* ssh payload #!key (pre "") (post " ") (mid ""))
-  (let* ((type (payload-type payload))
-         (s (conc pre (now)
-                  (thread-name (current-thread)) " "
-                  (ssh-user ssh) "@" (cadr (receive (tcp-port-numbers (ssh-ip ssh))))
-                  mid "\x1b[34m" type "\x1b[0m" post)))
-    (if (or (ssh-log-data?) (not (eq? type 'channel-data)))
-        (if (ssh-log-payload?)
-            (ssh-log s (wots (write (payload-parse payload))))
-            (ssh-log s "(" (string-length payload) " bytes)")))))
+(define (ssh-payload->log ssh payload) (wots (write (payload-parse payload))))
+(define (ssh-packet->log ssh payload sent?)
+  (conc (if (ssh-user ssh) (conc (ssh-user ssh) "@") "")
+        (or (ssh-remote->log ssh) "") " "
+        (if sent? "\x1b[34msend" "\x1b[36mrecv") "\x1b[0m "
+        (or (ssh-payload->log ssh payload) (string-length payload))))
 
-(define (ssh-log-recv ssh payload) (ssh-log* ssh payload #:mid " recv "))
-(define (ssh-log-send ssh payload) (ssh-log* ssh payload #:mid " send "))
+(define (ssh-log-send ssh payload) (when (ssh-log-packets?) (ssh-log (ssh-packet->log ssh payload #t))))
+(define (ssh-log-recv ssh payload) (when (ssh-log-packets?) (ssh-log (ssh-packet->log ssh payload #f))))
 
 (define (ssh-log-ignore/parsed ssh parsed)
-  (ssh-log "ssh ignr #" (ssh-seqnum/write ssh) ": " (car parsed)
-           " " (wots (write parsed))))
+  (when (ssh-log-packets?)
+    (ssh-log "ssh ignr #" (ssh-seqnum/write ssh) ": " (car parsed)
+             " " (wots (write parsed)))))
 
 (define-record-type <ssh>
   (%make-ssh server?
@@ -777,9 +774,12 @@
                              server-host-key-public64 ;; ssh-host-pk64
                              (asymmetric-sign server-host-key-secret) ;; ssh-hostkey-signer
                              #f)) ;; ssh-hostkey-known
+
+                 (ssh-log (ssh-remote->log ssh) " connected" )
                  (run-protocol-exchange ssh)
                  (kexinit-start ssh)
                  (handler ssh)
+                 (ssh-log (ssh-remote->log ssh) " disconnected" )
                  (close-input-port ip)
                  (close-output-port op))))
         (loop)))))
