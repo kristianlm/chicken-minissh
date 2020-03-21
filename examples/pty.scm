@@ -252,17 +252,19 @@
   (define (read-line)
     (let loop ()
       (let ((cmd (read-keystroke ip)))
-        (let ((body (edit-buf edit)))
-          (if (handle e cmd)
-              (loop)
-              (if (eq? cmd 'enter)
-                  (begin (set! (edit-buf edit) "")
-                         (set! (edit-pos edit) 0)
-                         (done edit)
-                         (utf8.conc body "\n"))
-                  (begin (edit-input! edit cmd)
-                         (update edit)
-                         (loop))))))))
+        (if (eof-object? cmd)
+            (done edit)
+            (let ((body (edit-buf edit)))
+              (if (handle e cmd)
+                  (loop)
+                  (if (eq? cmd 'enter)
+                      (begin (set! (edit-buf edit) "")
+                             (set! (edit-pos edit) 0)
+                             (done edit)
+                             (utf8.conc body "\n"))
+                      (begin (edit-input! edit cmd)
+                             (update edit)
+                             (loop)))))))))
 
   (let ((buffer "") (pos 0)) ;; buffer is #f for #!eof
     (make-input-port
@@ -270,15 +272,17 @@
        (let loop ()
          (if (>= pos (string-length buffer))
              (let ((line (read-line)))
-               (set! buffer line)
-               (set! pos 0)
-               (loop))
+               (if (eof-object? line)
+                   line
+                   (begin
+                     (set! buffer line)
+                     (set! pos 0)
+                     (loop))))
              (let ((c (string-ref buffer pos)))
                (set! pos (+ 1 pos))
                c))))
      (lambda () (char-ready? ip))         ;; ready?
      (lambda () (close-input-port ip))))) ;; close
-
 
 (import (only chicken.irregex irregex-replace/all))
 ;;(irregex-replace/all `(: ($ (~ "b")) "b") "ababab abba" "" "B")
