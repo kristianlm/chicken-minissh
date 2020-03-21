@@ -856,7 +856,13 @@
                          (unhandled
                           (lambda (x continue)
                             (ssh-log-ignore/parsed ssh x)
-                            (continue))))
+                            (continue)))
+                         (login-success (lambda (ssh user type pk) ;; user printed in ssh record
+                                          (ssh-log (ssh-remote->log ssh) " login success for "
+                                                   (wots (write user)) " (" type ") " pk)))
+                         (login-failure (lambda (ssh user type pk)
+                                          (ssh-log (ssh-remote->log ssh) " login failure for "
+                                                   (wots (write user)) " (" type ") " pk))))
 
   (unless (or publickey password)
     (error 'userauth-accept "must supply either publickey or password"))
@@ -884,6 +890,7 @@
              (else
               (cond ((banner user #f pk64) =>
                      (lambda (str) (unparse-userauth-banner ssh str ""))))
+              (login-failure ssh user 'publickey pk64)
               (fail!)
               (loop))))
       ;; login with pk and signature
@@ -900,11 +907,13 @@
               (%ssh-user-pk-set! ssh pk64)
               (cond ((banner user #t pk64) =>
                      (lambda (str) (unparse-userauth-banner ssh str ""))))
+              (login-success ssh user 'publickey pk64)
               (unparse-userauth-success ssh))
              ;; success, no loop ^
              (else
               (cond ((banner user #f pk64) =>
                      (lambda (str) (unparse-userauth-banner ssh str ""))))
+              (login-failure ssh user 'publickey pk64)
               (fail!)
               (loop))))
       ;; password login
@@ -913,15 +922,18 @@
               (%ssh-user-set! ssh user)
               (cond ((banner user #t #f) =>
                      (lambda (str) (unparse-userauth-banner ssh str ""))))
+              (login-success ssh user 'password #f)
               (unparse-userauth-success ssh))
              ;; success, no loop ^
              (else
               (cond ((banner user #f #f) =>
                      (lambda (str) (unparse-userauth-banner ssh str ""))))
+              (login-failure ssh user 'password #f)
               (fail!)
               (loop))))
       ;; invalid log                             ,-- eg. 'none
       (('userauth-request user "ssh-connection" type . whatever)
+       (login-failure ssh user type #f)
        (fail!)
        (loop))
 
