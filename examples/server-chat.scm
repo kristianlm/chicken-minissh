@@ -91,11 +91,11 @@ test with: ssh localhost -p 22022 chat")
     (current-input-port (make-pty-readline-port #:edit e
                                                 #:update refresh
                                                 #:done (lambda (e) #f)
-                                                #:handle (lambda (e cmd) (if (eq? cmd 'C-c)
-                                                                             (begin (clear)
-                                                                                    (print-help)
-                                                                                    (refresh e) #t)
-                                                                             #f))))
+                                                #:keystroke (lambda (e cmd) (if (eq? cmd 'C-c)
+                                                                                (begin (clear)
+                                                                                       (print-help)
+                                                                                       (refresh e) "")
+                                                                                #f))))
     (current-output-port (make-pty-output-port)))
 
 

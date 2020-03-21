@@ -57,7 +57,9 @@
                (op (channel-output-port ch))
                (ep (channel-error-port ch)))
            (with-safe-ports
-            (if (channel-terminal ch) (make-pty-readline-port ip: ip op: op prefix: "#;> ") ip)
+            (if (channel-terminal ch) (make-pty-readline-port
+                                       ip: ip op: op prefix: "#;> "
+                                       keystroke: (lambda (e cmd) (if (eq? 'delete cmd) #!eof #f))) ip)
             (if (channel-terminal ch) (make-pty-output-port   op: op) op)
             (if (channel-terminal ch) (make-pty-output-port   op: ep) ep))
 
@@ -67,5 +69,7 @@
              (print "obs: running in PTY-mode, this can get messy"))
 
            (nrepl-loop)
-           (channel-eof ch)))))
+           (unless (port-closed? (ssh-ip ssh))
+             (channel-eof ch)
+             (channel-close ch))))))
     (lambda () (channel-accept ssh pty: #t)))))
