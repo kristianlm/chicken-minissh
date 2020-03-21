@@ -42,9 +42,7 @@
     (lambda args
       ;; trying to reduce race-conditions by printing in one call
       (display (apply conc `(,(ssh-now->log) ,@args "\n")) cep)
-      (cond-expand ;; seems stderr doesn't flush on \n on windows
-       (windows (flush-output))
-       (else)))))
+      (flush-output cep))))
 
 (define (ssh-payload->log ssh payload) (wots (write (payload-parse payload))))
 (define (ssh-packet->log ssh payload sent?)
