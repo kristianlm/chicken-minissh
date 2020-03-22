@@ -301,6 +301,7 @@ correctly to when the remote side initiates). You can call
 
 ## plus these things
 
+- user banner message to tell user RSAA keys aren't supported
 - benchmark: faster read-string! based channel-input-port
 - transport: allow querying current encryption level
 - channels: pty handling?
