@@ -140,7 +140,8 @@ test with: ssh localhost -p 22022 chat")
           (match msg
             ((bc (from msg))
              (print-msg from msg (equal? user from))
-             (display (conc "\x1b]0;chat " user ": " msg "\x07")) ;; set terminal title
+             (display (conc "\x1b]0;chat " (time->string (seconds->local-time) "%H:%M")
+                            " " from ": " msg "\x07")) ;; set terminal title
              (refresh* e)
              (loop bc))))
          ((alive -> request closed?)
