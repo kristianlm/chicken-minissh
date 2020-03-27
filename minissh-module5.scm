@@ -5,7 +5,10 @@
                  ;; client
                  ssh-connect userauth-password userauth-publickey
                  channel-open channel-exec
+                 ;; lolevel
+                 ssh-handler
                  ;; channel properties
+                 channel-ssh channel-rcid channel-lcid
                  channel-command channel-terminal channel-terminal-width channel-terminal-height
                  ;; channel io
                  channel-read channel-write channel-eof channel-close
