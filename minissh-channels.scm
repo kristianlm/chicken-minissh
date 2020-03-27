@@ -27,8 +27,8 @@
   ;; TODO: field for max packet size
   ;; TODO: field for exit-status, exec command?
   ssh-channel?
-  (ssh  ssh-channel-ssh)
-  (type ssh-channel-type)
+  (ssh  channel-ssh)
+  (type channel-type)
   (lcid  channel-lcid)
   (rcid  channel-rcid      %channel-rcid-set!)
   (gochan-open-response    %channel-gochan-open-response)
@@ -301,7 +301,7 @@
       (if (string? cmd) ;; see hacky "close flag" in handler
           cmd
           #f))
-     (else (ssh-do-handlers! (ssh-channel-ssh ch))
+     (else (ssh-do-handlers! (channel-ssh ch))
            (loop)))))
 
 ;; block and wait for channel-open
@@ -381,7 +381,7 @@
   (when (< (ssh-channel-ws/read ch) (current-window-size))
     (let ((increment (current-window-size)))
      (%ssh-channel-ws/read-set! ch (+ (ssh-channel-ws/read ch) increment))
-     (unparse-channel-window-adjust (ssh-channel-ssh ch) (channel-rcid ch) increment)))
+     (unparse-channel-window-adjust (channel-ssh ch) (channel-rcid ch) increment)))
 
   (let loop ()
     (gochan-select
@@ -389,7 +389,7 @@
       (if closed
           (values #!eof #f)
           (values (car msg) (cadr msg))))
-     (else (ssh-do-handlers! (ssh-channel-ssh ch))
+     (else (ssh-do-handlers! (channel-ssh ch))
            (loop)))))
 
 (define (channel-write ch str #!optional (extended #f))
@@ -405,11 +405,11 @@
   (define (send! str)
     (let ((extended (if (eq? 'stderr extended) 1 extended)))
       (if extended
-          (unparse-channel-extended-data (ssh-channel-ssh ch)
+          (unparse-channel-extended-data (channel-ssh ch)
                                          (channel-rcid ch)
                                          extended
                                          str)
-          (unparse-channel-data (ssh-channel-ssh ch)
+          (unparse-channel-data (channel-ssh ch)
                                 (channel-rcid ch)
                                 str)))
     ;; TODO: mutex here
@@ -435,18 +435,18 @@
                ;; size. what should we really do here?
                ((chan-close -> _ fail)
                 (error 'channel-write "remote side closed channel while waiting for window size" ch))
-               (else (ssh-do-handlers! (ssh-channel-ssh ch))
+               (else (ssh-do-handlers! (channel-ssh ch))
                      (retry))))))))
 
 (define (channel-eof ch)
-  (unparse-channel-eof (ssh-channel-ssh ch) (channel-rcid ch)))
+  (unparse-channel-eof (channel-ssh ch) (channel-rcid ch)))
 
 (define (channel-close ch)
   (define chan-close (%channel-gochan-close ch))
   (gochan-select
    ((chan-close -> _ closed))
    (else ;; not already closed, send close both ends
-    (unparse-channel-close (ssh-channel-ssh ch) (channel-rcid ch))
+    (unparse-channel-close (channel-ssh ch) (channel-rcid ch))
     (gochan-close chan-close))))
 
 
