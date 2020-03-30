@@ -1,6 +1,6 @@
 ;;; this example tries to demonstrate a chat over SSH. much like the
 ;;; ssh.chat project.
-(import minissh (chicken io) gochan chicken.string srfi-18 (chicken time posix)
+(import minissh (chicken io) gochan chicken.string srfi-18 (chicken time posix) (chicken time)
         chicken.file chicken.port base64
         minissh.core chicken.condition
         chicken.irregex
@@ -47,11 +47,40 @@ test with: ssh localhost -p 22022 chat")
    (lambda (user pk) (hash-table-set! _userpks user pk) (userpk user))))
 (define (userpks) (hash-table-keys _userpks))
 
+;; when was user last seen (in seconds)
+(define-values (user-seen user-seen!)
+  (let ((ht (make-hash-table)))
+    (values
+     (lambda (user) (cond ((hash-table-ref  ht user (lambda () #f)) => (lambda (last) (- (current-seconds) last)))
+                          (else #f)))
+     (lambda (user #!optional (when (current-seconds))) (hash-table-set! ht user when)))))
+
+;; (map seconds->pretty-string (list (* 45) (* 60 59) (* 60 61) (* 60 120) (* 60 60 24 1) (* 60 60 24 14)))
+(define (seconds->pretty-string s)
+  (cond ((< s 60)            (conc s "s")) ;; seconds
+        ((< s (* 60 60))     (conc (quotient s 60) "min")) ;; minutes
+        ((< s (* 60 60 24))  (conc (quotient s (* 60 60)) "h")) ;; hours
+        (else                (conc (quotient s (* 60 60 24)) "d")))) ;; days
+
+;; (string-pad "123" 4 char: #\0) => "0123"
+(define (string-pad s length #!key (char #\space))
+  (let ((len (max 0 (- length (string-length s)))))
+    (conc (make-string len char) s)))
+
 (define (print-users)
-  (print "/users " (hash-table-size _userpks) ":\r")
+  (print "/users " (string-pad (conc (hash-table-size _userpks)) 2)
+         ":                                                public-key"
+         "  seen"
+         " user")
   (hash-table-for-each
    _userpks
-   (lambda (user pk) (print pk " " user))))
+   (lambda (user pk) (print pk
+                            " " (string-pad (cond ((user-seen user) =>
+                                                   (lambda (s)
+                                                     (if (> s 40) (seconds->pretty-string s)
+                                                         "\x1b[32m  now\x1b[0m"))) ;; < heartbeat interval
+                                                  (else "-")) 5)
+                            " " user))))
 
 (define bc (gochan 0))
 (define msgs (gochan 0))
@@ -86,6 +115,7 @@ test with: ssh localhost -p 22022 chat")
 
   (define alive (gochan 0))
   (define e (make-edit))
+  (user-seen! user)
 
   (define (refresh* e)
     (edit-render e (max 0 (- (or (channel-terminal-width ch) 60) (utf8.string-length user) 2))
@@ -127,9 +157,10 @@ test with: ssh localhost -p 22022 chat")
                      (loop)))))))
        (gochan-close alive)))
 
-    ;; ignore ping channel failures, they are just to avoid TCP
-    ;; connections dying.
-    (set! (ssh-handler (channel-ssh ch) 'channel-failure) (lambda (ssh p) #f))
+    ;; channel-failure would come as replies to our keepalive below,
+    ;; to TCP connections dying. also useful to know who's actually in
+    ;; the chatroom.
+    (set! (ssh-handler (channel-ssh ch) 'channel-failure) (lambda (ssh p) (user-seen! (ssh-user ssh))))
 
     (let ((tick (gochan-tick (* 30 1000)))
           (bc bc)) ;; grab bc now so we're sure we get our own broadcast
@@ -139,6 +170,7 @@ test with: ssh localhost -p 22022 chat")
          ((bc -> _ msg)
           (match msg
             ((bc (from msg))
+             (user-seen! from)
              (print-msg from msg (equal? user from))
              (display (conc "\x1b]0;chat " (time->string (seconds->local-time) "%H:%M")
                             " " from ": " msg "\x07")) ;; set terminal title
