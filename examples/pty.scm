@@ -59,9 +59,9 @@
           ((is? #\x12) 'C-r)        ;; ?
           ((is? #\x13) 'C-s)        ;; ?
           ((is? #\x14) 'C-t)        ;; ?
-          ((is? #\x15) 'C-u)        ;; ?
+          ((is? #\x15) 'deleteline-backwards)
           ((is? #\x16) 'C-v)        ;;  ^P
-          ((is? #\x17) 'deleteword) ;;  ^W
+          ((is? #\x17) 'backspace-word) ;;  ^W
           ((is? #\x18) 'C-x)        ;;  ^W
           ((is? #\x19) 'C-y)        ;;  ^W
           ((is? #\x1a) 'C-z)        ;;  ^W
@@ -142,6 +142,8 @@
              ((eq? cmd #\return))  ;; TODO
              ((eq? cmd 'deleteline)
               (edit-update! e (lambda (buf pos) (values (utf8.substring buf 0 pos) pos))))
+             ((eq? cmd 'deleteline-backwards)
+              (edit-update! e (lambda (buf pos) (values (utf8.substring buf pos) 0))))
 
              ((char? cmd)
               (edit-update! e (lambda (buf pos)
