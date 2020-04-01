@@ -118,7 +118,8 @@ test with: ssh localhost -p 22022 chat")
   (user-seen! user)
 
   (define (refresh* e)
-    (edit-render e (max 0 (- (or (channel-terminal-width ch) 60) (utf8.string-length user) 2))
+    ;;                                                                       [ ] space ---⹁
+    (edit-render e (max 0 (- (or (channel-terminal-width ch) 60) (utf8.string-length user) 3))
                  #:prefix (conc  "\r\x1b[K[\x1b[33m" user "\x1b[0m] ")))
 
   (define (refresh e) ;; avoids ugly print race-conditions
