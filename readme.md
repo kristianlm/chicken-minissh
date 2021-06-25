@@ -256,8 +256,7 @@ feel the code could be dropped to something like a fifth. But here's
 the deal-breaker: if we can use only one thread, we can't have our SSH
 sessions respond to external events, since the session thread might be
 blocked by a read. The only way to solve that, as far as I know, is to
-read from a separate thread. And that's when the party is getting
-started.
+read from a separate thread. And that's when the party starts.
 
 The most useful API for the SSH channels is to have one srfi-18 thread
 per channel, with its input and output ports bound
