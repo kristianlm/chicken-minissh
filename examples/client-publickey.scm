@@ -1,7 +1,7 @@
 (import minissh (chicken port)
         (chicken process-context))
 
-(ssh-log? #f)
+(ssh-log-packets? #f)
 
 ;; generated with (ssh-keygen 'ed25519)
 (define pk "AAAAC3NzaC1lZDI1NTE5AAAAIHqxQfb1habVfT2eC9LfKyXq84k1aU+ylV8qwVPeeyxv")

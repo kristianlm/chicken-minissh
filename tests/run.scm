@@ -4,7 +4,7 @@
         (only (chicken port) port-for-each)
         (only (chicken tcp) tcp-read-timeout))
 
-(ssh-log? #f)
+(ssh-log-packets? #f)
 
 (test
  "channel-data: simple parse -> unparse"

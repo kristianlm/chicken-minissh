@@ -216,13 +216,11 @@ initiate this after 1GiB of data.
 
 ## Logging API
 
-    [parameter] (ssh-log? #t)
-    [parameter] (ssh-log-payload? #f)
+    [parameter] (ssh-log-packets? #f)
 
-Tune logging verbosity with these parameters. Default values are shown
-above. `(ssh-log? #f)` shuts off logging completely.
-`(ssh-log-payload? #t)` turns on logging on parsed packet content
-which may be useful during SSH debugging.
+Tune logging verbosity with this parameter. `(ssh-log-packets? #t)`
+turns on logging for package payloads, which may be useful during
+debugging.
 
 # Notes
 

@@ -3,7 +3,7 @@
         (chicken io)
         (chicken process) (chicken process-context))
 
-(ssh-log? #f)
+(ssh-log-packets? #f)
 
 (define user (get-environment-variable "USER"))
 (define cmd  "date")
